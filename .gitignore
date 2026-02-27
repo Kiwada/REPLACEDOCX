@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtualenv/cache (local runtime)
+recovered_from_exe/reconstructed/.venv/
+recovered_from_exe/reconstructed/.image_cache_docx/
+
+# Runtime outputs
+saida_ok/
+recovered_from_exe/reconstructed/engine_debug.log
+recovered_from_exe/reconstructed/~$*.docx
+
+# Windows packaged build (legacy)
+ReplaceDocx.exe
+_internal/
+
