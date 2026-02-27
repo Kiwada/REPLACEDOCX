@@ -128,7 +128,7 @@ def _configure_process_parser(sub: argparse._SubParsersAction) -> None:
 
 
 def _configure_report_parser(sub: argparse._SubParsersAction) -> None:
-    p = sub.add_parser("report", help="Gera apenas os relatórios de dificuldade (CSV/TXT/HTML/PDF).")
+    p = sub.add_parser("report", help="Gera apenas os relatórios de dificuldade (HTML/PDF).")
     p.add_argument("input_docx", type=Path, help="Caminho do arquivo .docx de entrada")
     p.add_argument(
         "--output-docx",
@@ -197,7 +197,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
     cfg["difficulty_report_data"] = report
 
     result = processar_docx(input_docx, output_docx, cfg)
-    report_csv, report_txt, report_html, report_pdf = save_difficulty_report(
+    report_html, report_pdf = save_difficulty_report(
         report,
         output_docx,
         generate_pdf=not bool(args.no_report_pdf),
@@ -207,13 +207,11 @@ def _cmd_process(args: argparse.Namespace) -> int:
     print("Área:", args.area)
     print("Entrada:", input_docx)
     print("Saída:", result["arquivo_saida"])
-    print("Relatório CSV:", report_csv)
-    print("Relatório TXT:", report_txt)
     print("Relatório HTML:", report_html)
     if report_pdf:
         print("Relatório PDF (A4):", report_pdf)
     elif not args.no_report_pdf:
-        print("Relatório PDF (A4): não gerado (instale reportlab na venv).")
+        print("Relatório PDF (A4): não gerado (instale weasyprint; fallback: reportlab).")
     return 0
 
 
@@ -231,7 +229,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         input_docx,
         area_conhecimento=args.area,
     )
-    report_csv, report_txt, report_html, report_pdf = save_difficulty_report(
+    report_html, report_pdf = save_difficulty_report(
         report,
         output_docx,
         generate_pdf=not bool(args.no_pdf),
@@ -241,13 +239,11 @@ def _cmd_report(args: argparse.Namespace) -> int:
     print("Área:", args.area)
     print("Entrada:", input_docx)
     print("Base de saída:", output_docx)
-    print("Relatório CSV:", report_csv)
-    print("Relatório TXT:", report_txt)
     print("Relatório HTML:", report_html)
     if report_pdf:
         print("Relatório PDF (A4):", report_pdf)
     elif not args.no_pdf:
-        print("Relatório PDF (A4): não gerado (instale reportlab na venv).")
+        print("Relatório PDF (A4): não gerado (instale weasyprint; fallback: reportlab).")
     return 0
 
 

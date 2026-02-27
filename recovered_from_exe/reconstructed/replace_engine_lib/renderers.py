@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from docx import Document
 from docx.enum.section import WD_ORIENT, WD_SECTION_START
 from docx.enum.text import WD_LINE_SPACING, WD_PARAGRAPH_ALIGNMENT
@@ -279,7 +277,6 @@ def append_difficulty_report_appendix(doc: Document, report: dict) -> bool:
     meta = [
         f"Conteúdo: {report.get('conteudo', '-')}",
         f"Área: {report.get('area_conhecimento', '-')}",
-        f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     ]
     for line in meta:
         p = doc.add_paragraph(line)

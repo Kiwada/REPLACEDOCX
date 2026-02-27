@@ -1,90 +1,43 @@
-# ReplaceDocx (Port para macOS)
+# ContextoCLI (ReplaceDocx)
 
-Pipeline para processamento de arquivos `.docx` com:
+Ferramenta de terminal para processar arquivos `.docx` de exercicios.
 
-- substituicao de marcadores de dificuldade por capsulas visuais
-- substituicao de titulos de secao por artes (banner)
-- padronizacao basica de fonte/paragrafo
-- remocao de linhas `GABARITO: X`
-- geracao de relatorio por secao (facil/media/dificil)
+## O que ela faz
 
-Este projeto foi adaptado de uma versao original Windows e hoje roda via Python no macOS.
-
-## Visao Geral
-
-Entrada:
-- um arquivo `.docx` de conteudo
-- assets organizados por area (`Assets/areas/<area>/...`)
-
-Saidas:
-- `..._ok.docx`
-- `..._ok_relatorio_dificuldade.csv`
-- `..._ok_relatorio_dificuldade.txt`
-- `..._ok_relatorio_dificuldade.html`
-- `..._ok_relatorio_dificuldade.pdf` (opcional, se `reportlab` estiver instalado)
-
-Todas as saidas padrao vao para:
-- `ReplaceDocx/saida_ok/`
-
-## Estrutura do Projeto
-
-```text
-ReplaceDocx/
-  Assets/
-    areas/
-      biologia/
-        capsulas/
-          facil.png|jpg
-          media.png|jpg
-          dificil.png|jpg
-        secoes/
-          exercicios_sala.png|jpg
-          exercicios_propostos.png|jpg
-          secao_enem.png|jpg
-          exercicios_aprofundamento.png|jpg
-          exercicios_regionais.png|jpg
-          exercicios_dissertativos.png|jpg
-  recovered_from_exe/
-    reconstructed/
-      run_docx_real.py
-      replace_engine.py
-  saida_ok/
-```
+- troca marcadores de dificuldade por capsulas visuais
+- troca titulos de secao por banners
+- remove linhas `GABARITO: X`
+- adiciona tabelas de autoavaliacao no final
+- gera relatorio por secao (`facil`, `media`, `dificil`)
+- cria saida final com sufixo `_ok`
 
 ## Requisitos
 
 - macOS
-- Python 3.11+ (testado com 3.14)
-- Dependencia Python:
-  - `python-docx`
-
-Opcional:
-- Pillow (`PIL`) para conversao de imagens
-- sem Pillow, no macOS o script usa `sips` como fallback para JPG nao compativel
-- `reportlab` para gerar o relatório em PDF A4
+- Python 3.11+
+- `python-docx`
+- opcional: `weasyprint` (PDF igual ao HTML)
+- opcional: `reportlab` (fallback de PDF)
 
 ## Instalacao
-
-No terminal:
 
 ```bash
 cd /Users/kiwada/Desktop/ReplaceDocx/recovered_from_exe/reconstructed
 python3 -m venv .venv
 source .venv/bin/activate
 pip install python-docx reportlab
+pip install weasyprint
 ```
 
-## Uso Rapido
+## Uso rapido
 
-Processar um capitulo (subcomando `process`):
+Processar documento completo:
 
 ```bash
-cd /Users/kiwada/Desktop/ReplaceDocx/recovered_from_exe/reconstructed
-source .venv/bin/activate
 python contextocli.py process "/caminho/arquivo.docx" --area biologia
 ```
 
-Gerar apenas relatorios:
+Gerar somente relatorios:
 
 ```bash
 python contextocli.py report "/caminho/arquivo.docx" --area biologia
@@ -96,152 +49,63 @@ Validar assets da area:
 python contextocli.py check-assets --area biologia
 ```
 
-Compatibilidade:
-- `python replacedocx_cli.py ...` continua funcionando.
-- `python run_docx_real.py ...` continua funcionando (agora como wrapper da nova CLI).
-
-### Parametros principais
-
-- `--area biologia`  
-  Define a pasta de assets por area (`Assets/areas/biologia/...`).
-
-- `--no-section-banners`  
-  Nao troca os titulos de secao por banners.
-
-- `--no-report-appendix`  
-  Nao adiciona o relatório de dificuldade em uma seção A4 ao final do DOCX.
-
-- `--no-report-pdf`  
-  Nao gera o arquivo PDF A4 do relatório.
-
-- `--section-banner-width-cm 7.5`  
-  Define largura de banner.  
-  Default: largura da coluna (`--column-width-cm`, default `7.5`).
-
-- `-o /caminho/saida.docx`  
-  Sobrescreve destino da saida.
-
-Ajuda completa:
+Ajuda:
 
 ```bash
 python contextocli.py -h
 python contextocli.py process -h
 ```
 
-## Regras de Processamento
+## Saidas
 
-### 1) Secoes (banners)
+Por padrao, os arquivos sao salvos em `saida_ok/`:
 
-Titulos reconhecidos (normalizados com/sem acento):
+- `<nome>_ok.docx`
+- `<nome>_ok_relatorio_dificuldade.html`
+- `<nome>_ok_relatorio_dificuldade.pdf` (prioriza `weasyprint` para ficar igual ao HTML)
 
-- EXERCICIOS DE SALA
-- EXERCICIOS PROPOSTOS
-- SECAO ENEM
-- EXERCICIOS DE APROFUNDAMENTO
-- EXERCICIOS REGIONAIS
-- EXERCICIO(S) DISSERTATIVO(S)
+## Assets (estrutura minima)
 
-Comportamento:
-- o titulo da secao e substituido completamente pela arte correspondente
-- banner fica centralizado
-- largura segue `section_banner_width_cm` (ou largura da coluna por default)
-
-### 2) Dificuldade (capsulas)
-
-Padroes reconhecidos para contagem/substituicao:
-
-- `FÁCIL`, `MÉDIA`, `DIFÍCIL`
-- com variacoes como:
-  - `1. FÁCIL`
-  - `(MÉDIA)`
-  - `NIVEL: DIFICIL`
-
-### 3) Limpeza e formatacao
-
-- remove linhas `GABARITO: A` ... `GABARITO: E`
-- aplica fonte/tamanho configurados
-- ajuste de paragrafos basico
-
-## Relatorio por Secao
-
-A cada execucao, alem do DOCX final, sao gerados:
-
-- `*_relatorio_dificuldade.csv`
-- `*_relatorio_dificuldade.txt`
-- `*_relatorio_dificuldade.html`
-- `*_relatorio_dificuldade.pdf` (quando `reportlab` estiver disponível)
-
-No DOCX final:
-- o relatório de dificuldade é anexado no fim do documento
-- em nova seção A4 (retrato), pronta para exportação/impressão
-
-Conteudo do relatorio:
-- nome do conteudo (nome do arquivo de entrada, sem extensao)
-- contagem de facil/media/dificil por secao
-- total geral
-
-## Convencao de Nomes de Assets
-
-### Capsulas
-
-Pasta:
-- `Assets/areas/<area>/capsulas/`
-
-Nomes:
-- `facil`
-- `media`
-- `dificil`
-
-Extensao aceita:
-- `.png`, `.jpg`, `.jpeg`
-
-### Secoes
-
-Pasta:
-- `Assets/areas/<area>/secoes/`
-
-Nomes:
-- `exercicios_sala`
-- `exercicios_propostos`
-- `secao_enem`
-- `exercicios_aprofundamento`
-- `exercicios_regionais`
-- `exercicios_dissertativos`
-
-Extensao aceita:
-- `.png`, `.jpg`, `.jpeg`
-
-## Solucao de Problemas
-
-### Imagem JPG nao entra no DOCX
-
-Alguns JPGs exportados por ferramenta grafica podem nao ser lidos diretamente pelo `python-docx`.
-
-Comportamento atual:
-- o motor tenta usar o JPG
-- se falhar, converte automaticamente para PNG em cache e segue o processamento
-
-### Arquivo com espacos/acentos no caminho
-
-Use aspas no caminho:
-
-```bash
-python contextocli.py process "/Volumes/.../CAPÍTULO_7_....docx" --area biologia
+```text
+Assets/
+  areas/
+    biologia/
+      capsulas/
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
+      secoes/
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+        exercicios_aprofundamento.png|jpg|jpeg
+        exercicios_regionais.png|jpg|jpeg
+        exercicios_dissertativos.png|jpg|jpeg
 ```
 
-## Arquivos Principais
+## Flags uteis (`process`)
 
-- `recovered_from_exe/reconstructed/contextocli.py`  
-  Entrada principal da ContextoCLI.
+- `--area biologia`
+- `--no-section-banners`
+- `--no-question-tables`
+- `--no-report-appendix`
+- `--no-report-pdf`
+- `--section-banner-width-cm 7.5`
+- `-o /caminho/saida.docx`
 
-- `recovered_from_exe/reconstructed/replacedocx_cli.py`  
-  Alias/compatibilidade da ContextoCLI.
+## Compatibilidade
 
-- `recovered_from_exe/reconstructed/run_docx_real.py`  
-  Wrapper de compatibilidade para comandos legados.
+Estes comandos antigos continuam funcionando:
 
-- `recovered_from_exe/reconstructed/replace_engine.py`  
-  Motor de processamento (banners, capsulas, relatorio).
+- `python replacedocx_cli.py ...`
+- `python run_docx_real.py ...`
 
-- `recovered_from_exe/reconstructed/PORT_MACOS.md`  
-  Guia tecnico complementar do port.
+## Problemas comuns
+
+Caminho com espacos/acentos:
+
+```bash
+python contextocli.py process "/Volumes/.../CAPITULO_8_...docx" --area biologia
+```
+
+Se JPG nao entrar no DOCX, a engine tenta converter automaticamente para PNG.

@@ -88,10 +88,8 @@ Saída padrão:
 
 - pasta: `ReplaceDocx/saida_ok/`
 - nome: `<nome_original>_ok.docx`
-- relatório CSV: `<nome_original>_ok_relatorio_dificuldade.csv`
-- relatório TXT: `<nome_original>_ok_relatorio_dificuldade.txt`
 - relatório HTML: `<nome_original>_ok_relatorio_dificuldade.html`
-- relatório PDF (A4): `<nome_original>_ok_relatorio_dificuldade.pdf` (opcional com `reportlab`)
+- relatório PDF (A4): `<nome_original>_ok_relatorio_dificuldade.pdf` (prioriza `weasyprint`; fallback `reportlab`)
 - anexo A4 no próprio DOCX final com resumo por seção
 
 Controle de artes de seção:
