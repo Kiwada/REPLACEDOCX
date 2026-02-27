@@ -20,6 +20,8 @@ Saidas:
 - `..._ok.docx`
 - `..._ok_relatorio_dificuldade.csv`
 - `..._ok_relatorio_dificuldade.txt`
+- `..._ok_relatorio_dificuldade.html`
+- `..._ok_relatorio_dificuldade.pdf` (opcional, se `reportlab` estiver instalado)
 
 Todas as saidas padrao vao para:
 - `ReplaceDocx/saida_ok/`
@@ -59,6 +61,7 @@ ReplaceDocx/
 Opcional:
 - Pillow (`PIL`) para conversao de imagens
 - sem Pillow, no macOS o script usa `sips` como fallback para JPG nao compativel
+- `reportlab` para gerar o relatório em PDF A4
 
 ## Instalacao
 
@@ -68,7 +71,7 @@ No terminal:
 cd /Users/kiwada/Desktop/ReplaceDocx/recovered_from_exe/reconstructed
 python3 -m venv .venv
 source .venv/bin/activate
-pip install python-docx
+pip install python-docx reportlab
 ```
 
 ## Uso Rapido
@@ -88,6 +91,12 @@ python run_docx_real.py "/caminho/arquivo.docx" --area biologia
 
 - `--no-section-banners`  
   Nao troca os titulos de secao por banners.
+
+- `--no-report-appendix`  
+  Nao adiciona o relatório de dificuldade em uma seção A4 ao final do DOCX.
+
+- `--no-report-pdf`  
+  Nao gera o arquivo PDF A4 do relatório.
 
 - `--section-banner-width-cm 7.5`  
   Define largura de banner.  
@@ -142,6 +151,12 @@ A cada execucao, alem do DOCX final, sao gerados:
 
 - `*_relatorio_dificuldade.csv`
 - `*_relatorio_dificuldade.txt`
+- `*_relatorio_dificuldade.html`
+- `*_relatorio_dificuldade.pdf` (quando `reportlab` estiver disponível)
+
+No DOCX final:
+- o relatório de dificuldade é anexado no fim do documento
+- em nova seção A4 (retrato), pronta para exportação/impressão
 
 Conteudo do relatorio:
 - nome do conteudo (nome do arquivo de entrada, sem extensao)

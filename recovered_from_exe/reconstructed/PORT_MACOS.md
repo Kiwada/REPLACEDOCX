@@ -30,7 +30,7 @@ Isso é tecnologia COM e so existe no Windows.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install python-docx
+pip install python-docx reportlab
 ```
 
 2. Rode a engine com um script simples:
@@ -84,12 +84,41 @@ Saída padrão:
 - nome: `<nome_original>_ok.docx`
 - relatório CSV: `<nome_original>_ok_relatorio_dificuldade.csv`
 - relatório TXT: `<nome_original>_ok_relatorio_dificuldade.txt`
+- relatório HTML: `<nome_original>_ok_relatorio_dificuldade.html`
+- relatório PDF (A4): `<nome_original>_ok_relatorio_dificuldade.pdf` (opcional com `reportlab`)
+- anexo A4 no próprio DOCX final com resumo por seção
 
 Controle de artes de seção:
 
 ```bash
 python run_docx_real.py "/caminho/arquivo.docx" --area biologia --section-banner-width-cm 15.5
 python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-section-banners
+```
+
+Tabelas de dificuldade por questão (autoavaliação):
+
+- Inseridas automaticamente no final do documento.
+- Mantêm a ordem das seções encontradas no conteúdo.
+- Colunas: `Questão | Dificuldade | Acertou | Errou | Revisar`.
+- Para desativar:
+
+```bash
+python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-question-tables
+```
+
+Relatório final no DOCX/PDF:
+
+- anexo A4 no final do DOCX: ativo por padrão
+- para desativar anexo A4 no DOCX:
+
+```bash
+python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-report-appendix
+```
+
+- para desativar somente o PDF:
+
+```bash
+python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-report-pdf
 ```
 
 ## Sobre o `finalize_word` no macOS
