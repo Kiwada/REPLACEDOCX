@@ -75,8 +75,14 @@ assets/areas/<area>/secoes/exercicios_dissertativos.png
 Exemplo de CLI:
 
 ```bash
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia
+python contextocli.py process "/caminho/arquivo.docx" --area biologia
+python contextocli.py report "/caminho/arquivo.docx" --area biologia
+python contextocli.py check-assets --area biologia
 ```
+
+Compatibilidade:
+- `python replacedocx_cli.py ...` continua válido como alias.
+- `python run_docx_real.py ...` continua válido como alias da nova CLI.
 
 Saída padrão:
 
@@ -91,8 +97,8 @@ Saída padrão:
 Controle de artes de seção:
 
 ```bash
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia --section-banner-width-cm 15.5
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-section-banners
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --section-banner-width-cm 15.5
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-section-banners
 ```
 
 Tabelas de dificuldade por questão (autoavaliação):
@@ -103,7 +109,7 @@ Tabelas de dificuldade por questão (autoavaliação):
 - Para desativar:
 
 ```bash
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-question-tables
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-question-tables
 ```
 
 Relatório final no DOCX/PDF:
@@ -112,13 +118,13 @@ Relatório final no DOCX/PDF:
 - para desativar anexo A4 no DOCX:
 
 ```bash
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-report-appendix
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-report-appendix
 ```
 
 - para desativar somente o PDF:
 
 ```bash
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia --no-report-pdf
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-report-pdf
 ```
 
 ## Sobre o `finalize_word` no macOS

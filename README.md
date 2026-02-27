@@ -76,13 +76,29 @@ pip install python-docx reportlab
 
 ## Uso Rapido
 
-Processar um capitulo:
+Processar um capitulo (subcomando `process`):
 
 ```bash
 cd /Users/kiwada/Desktop/ReplaceDocx/recovered_from_exe/reconstructed
 source .venv/bin/activate
-python run_docx_real.py "/caminho/arquivo.docx" --area biologia
+python contextocli.py process "/caminho/arquivo.docx" --area biologia
 ```
+
+Gerar apenas relatorios:
+
+```bash
+python contextocli.py report "/caminho/arquivo.docx" --area biologia
+```
+
+Validar assets da area:
+
+```bash
+python contextocli.py check-assets --area biologia
+```
+
+Compatibilidade:
+- `python replacedocx_cli.py ...` continua funcionando.
+- `python run_docx_real.py ...` continua funcionando (agora como wrapper da nova CLI).
 
 ### Parametros principais
 
@@ -108,7 +124,8 @@ python run_docx_real.py "/caminho/arquivo.docx" --area biologia
 Ajuda completa:
 
 ```bash
-python run_docx_real.py -h
+python contextocli.py -h
+python contextocli.py process -h
 ```
 
 ## Regras de Processamento
@@ -209,13 +226,19 @@ Comportamento atual:
 Use aspas no caminho:
 
 ```bash
-python run_docx_real.py "/Volumes/.../CAPÍTULO_7_....docx" --area biologia
+python contextocli.py process "/Volumes/.../CAPÍTULO_7_....docx" --area biologia
 ```
 
 ## Arquivos Principais
 
+- `recovered_from_exe/reconstructed/contextocli.py`  
+  Entrada principal da ContextoCLI.
+
+- `recovered_from_exe/reconstructed/replacedocx_cli.py`  
+  Alias/compatibilidade da ContextoCLI.
+
 - `recovered_from_exe/reconstructed/run_docx_real.py`  
-  CLI principal.
+  Wrapper de compatibilidade para comandos legados.
 
 - `recovered_from_exe/reconstructed/replace_engine.py`  
   Motor de processamento (banners, capsulas, relatorio).
