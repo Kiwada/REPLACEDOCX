@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from replacedocx_cli import main
+from contextocli import main
 
 
 if __name__ == "__main__":

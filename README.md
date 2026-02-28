@@ -23,7 +23,7 @@ Ferramenta de terminal para processar arquivos `.docx` de exercicios.
 ## Instalacao
 
 ```bash
-cd /Users/kiwada/Desktop/ReplaceDocx/recovered_from_exe/reconstructed
+cd /Users/kiwada/Desktop/ReplaceDocx
 python3 -m venv .venv
 source .venv/bin/activate
 pip install python-docx reportlab
@@ -101,6 +101,14 @@ Estes comandos antigos continuam funcionando:
 
 - `python replacedocx_cli.py ...`
 - `python run_docx_real.py ...`
+
+## Estrutura
+
+- `contextocli.py`: entrada principal da CLI
+- `src/replacedocx/`: pacote principal (cli, engine, renderizadores e relatorios)
+- `scripts/test_run.py`: teste rapido local
+- `Assets/`: capsulas e artes por area
+- `docs/USAGE.md`: guia objetivo de uso
 
 ## Problemas comuns
 

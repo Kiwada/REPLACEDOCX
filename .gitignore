@@ -6,15 +6,15 @@ __pycache__/
 *.py[cod]
 
 # Virtualenv/cache (local runtime)
-recovered_from_exe/reconstructed/.venv/
-recovered_from_exe/reconstructed/.image_cache_docx/
+.venv/
+**/.venv/
+.image_cache_docx/
 
 # Runtime outputs
 saida_ok/
-recovered_from_exe/reconstructed/engine_debug.log
-recovered_from_exe/reconstructed/~$*.docx
+engine_debug.log
+~$*.docx
 
-# Windows packaged build (legacy)
+# Windows packaged build artifacts
 ReplaceDocx.exe
 _internal/
-

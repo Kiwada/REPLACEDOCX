@@ -1,10 +1,22 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from docx import Document
 
-from replace_engine import processar_docx
+
+def _bootstrap_project_path() -> Path:
+    project_root = Path(__file__).resolve().parents[1]
+    root_str = str(project_root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+    return project_root
+
+
+PROJECT_ROOT = _bootstrap_project_path()
+
+from replace_engine import processar_docx  # noqa: E402
 
 
 def build_input(path: Path) -> None:
@@ -19,9 +31,8 @@ def build_input(path: Path) -> None:
 
 
 def main() -> None:
-    base = Path(__file__).resolve().parent
-    entrada = base / "entrada_teste.docx"
-    saida = base / "saida_teste.docx"
+    entrada = PROJECT_ROOT / "entrada_teste.docx"
+    saida = PROJECT_ROOT / "saida_teste.docx"
 
     build_input(entrada)
 
@@ -41,7 +52,7 @@ def main() -> None:
     print("OK", result)
     print("entrada:", entrada)
     print("saida:", saida)
-    print("log:", base / "engine_debug.log")
+    print("log:", PROJECT_ROOT / "engine_debug.log")
 
 
 if __name__ == "__main__":

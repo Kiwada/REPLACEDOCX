@@ -13,12 +13,21 @@ def output_base_dir() -> Path:
     return DEFAULT_EXTERNAL_OUTPUT_DIR
 
 
+def _ensure_writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".contextocli_write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
 def default_output_path(input_docx: Path) -> Path:
     base = output_base_dir()
-    try:
-        base.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        # Fallback local quando o volume externo não está montado/disponível.
+    if not _ensure_writable_dir(base):
+        # Fallback local quando o volume externo não está montado/sem permissão.
         base = Path(__file__).resolve().parents[3] / "saida_ok"
         base.mkdir(parents=True, exist_ok=True)
     return base / f"{input_docx.stem}_ok{input_docx.suffix}"

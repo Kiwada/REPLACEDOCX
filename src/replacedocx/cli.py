@@ -5,16 +5,16 @@ import os
 import sys
 from pathlib import Path
 
-from replace_engine import gerar_relatorio_dificuldade_por_secao, processar_docx
-from replace_engine_lib.common import (
+from .engine import gerar_relatorio_dificuldade_por_secao, processar_docx
+from .engine_lib.common import (
     default_markers_for_area,
     default_section_banners_for_area,
     resolve_path,
 )
-from replace_engine_lib.report_outputs import default_output_path, save_difficulty_report
+from .engine_lib.report_outputs import default_output_path, save_difficulty_report
 
 CLI_NAME = "ContextoCLI"
-CLI_VERSION = "1.1.0"
+CLI_VERSION = "1.2.0"
 CLI_PROG = "contextocli"
 SUBCOMMANDS = {"process", "report", "check-assets", "version"}
 

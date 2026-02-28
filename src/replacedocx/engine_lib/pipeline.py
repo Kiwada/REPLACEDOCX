@@ -226,7 +226,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     elog("Saved via python-docx OK")
 
     if finalize_word:
-        from word_finalize import finalize_with_word
+        from ..word_finalize import finalize_with_word
 
         finalize_with_word(
             docx_in=output_path,

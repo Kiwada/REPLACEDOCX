@@ -26,9 +26,9 @@ SECTION_TAG = "SECTION_BANNER_REPLACE_DOCX"
 def runtime_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
-    # common.py está em .../reconstructed/replace_engine_lib/common.py
-    # runtime da engine deve seguir em .../reconstructed
-    return Path(__file__).resolve().parents[1]
+    # common.py está em .../src/replacedocx/engine_lib/common.py
+    # runtime da engine deve seguir na raiz do projeto.
+    return Path(__file__).resolve().parents[3]
 
 
 ENGINE_LOG = runtime_dir() / "engine_debug.log"
@@ -180,14 +180,15 @@ def resolve_path(p: str | Path) -> Path:
 
     assets = assets_dir()
     base = runtime_dir()
-    project_assets = base.parent.parent / "Assets"
+    project_assets = base / "Assets"
     candidates = [
         (assets / p),
         (assets / p.name),
         (base / p),
+        (base / "Assets" / p),
+        (base / "Assets" / p.name),
         (base / "assets" / p),
-        (base.parent / "Assets" / p),
-        (base.parent / "Assets" / p.name),
+        (base / "assets" / p.name),
         (project_assets / p),
         (project_assets / p.name),
     ]
