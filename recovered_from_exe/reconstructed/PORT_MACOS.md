@@ -86,7 +86,7 @@ Compatibilidade:
 
 Saída padrão:
 
-- pasta: `ReplaceDocx/saida_ok/`
+- pasta: `/Volumes/anthropic_externo/Documentos Processados CONTEXTO/` (fallback: `ReplaceDocx/saida_ok/`)
 - nome: `<nome_original>_ok.docx`
 - relatório HTML: `<nome_original>_ok_relatorio_dificuldade.html`
 - relatório PDF (A4): `<nome_original>_ok_relatorio_dificuldade.pdf` (prioriza `weasyprint`; fallback `reportlab`)

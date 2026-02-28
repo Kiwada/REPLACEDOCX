@@ -6,16 +6,21 @@ from html import escape
 from io import StringIO
 from pathlib import Path
 
+DEFAULT_EXTERNAL_OUTPUT_DIR = Path("/Volumes/anthropic_externo/Documentos Processados CONTEXTO")
+
 
 def output_base_dir() -> Path:
-    # .../ReplaceDocx/recovered_from_exe/reconstructed/replace_engine_lib/report_outputs.py
-    # -> pasta alvo: .../ReplaceDocx/saida_ok
-    return Path(__file__).resolve().parents[3] / "saida_ok"
+    return DEFAULT_EXTERNAL_OUTPUT_DIR
 
 
 def default_output_path(input_docx: Path) -> Path:
     base = output_base_dir()
-    base.mkdir(parents=True, exist_ok=True)
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # Fallback local quando o volume externo não está montado/disponível.
+        base = Path(__file__).resolve().parents[3] / "saida_ok"
+        base.mkdir(parents=True, exist_ok=True)
     return base / f"{input_docx.stem}_ok{input_docx.suffix}"
 
 

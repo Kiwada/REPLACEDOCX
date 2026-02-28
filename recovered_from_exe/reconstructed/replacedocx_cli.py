@@ -139,7 +139,7 @@ def _configure_report_parser(sub: argparse._SubParsersAction) -> None:
         "--output-docx",
         type=Path,
         default=None,
-        help="Arquivo .docx base para nomear relatórios (default: saida_ok/<entrada>_ok.docx).",
+        help="Arquivo .docx base para nomear relatórios (default: /Volumes/anthropic_externo/Documentos Processados CONTEXTO/<entrada>_ok.docx).",
     )
     _build_common_options(p)
     p.add_argument(

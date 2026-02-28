@@ -59,7 +59,7 @@ python contextocli.py process -h
 
 ## Saidas
 
-Por padrao, os arquivos sao salvos em `saida_ok/`:
+Por padrao, os arquivos sao salvos em `/Volumes/anthropic_externo/Documentos Processados CONTEXTO/`:
 
 - `<nome>_ok.docx`
 - `<nome>_ok_relatorio_dificuldade.html`
