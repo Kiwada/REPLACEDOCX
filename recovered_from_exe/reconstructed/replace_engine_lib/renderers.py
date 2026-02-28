@@ -102,19 +102,57 @@ def _insert_question_difficulty_table(
     doc: Document,
     section_item: dict,
     column_width_cm: float,
+    section_banner_map: dict[str, str] | None = None,
+    section_banner_width_cm: float | None = None,
 ) -> int:
     questoes = section_item.get("questoes") or []
     if not questoes:
         return 0
 
     secao = section_item["secao"]
-    title_p = doc.add_paragraph(f"Autoavaliação - {secao}")
+    title_p = doc.add_paragraph("")
 
-    title_p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    if title_p.runs:
-        title_p.runs[0].bold = True
-        title_p.runs[0].font.size = Pt(11)
-        title_p.runs[0].font.color.rgb = RGBColor(31, 41, 55)
+    inserted_banner = False
+    norm_secao = normalize_text_key(secao)
+    matched_img = None
+    if section_banner_map:
+        matched_img = section_banner_map.get(norm_secao)
+        if matched_img is None:
+            for norm_title, img in section_banner_map.items():
+                if (
+                    norm_secao == norm_title
+                    or norm_secao.startswith(norm_title + " ")
+                    or norm_title in norm_secao
+                ):
+                    matched_img = img
+                    break
+
+    if matched_img:
+        img_path = resolve_path(matched_img)
+        if img_path.exists():
+            try:
+                banner_width = float(section_banner_width_cm or column_width_cm)
+                section_tag = f"{SECTION_TAG}_AUTO_{safe_tag_suffix(norm_secao)}"
+                _replace_paragraph_with_section_banner(
+                    title_p,
+                    img_path=img_path,
+                    section_banner_width_cm=banner_width,
+                    section_tag=section_tag,
+                )
+                inserted_banner = True
+            except Exception as exc:
+                elog(f"Autoavaliação banner failed for '{secao}': {img_path} ({exc})")
+        else:
+            elog(f"Autoavaliação banner missing for '{secao}': {img_path}")
+
+    if not inserted_banner:
+        title_p.add_run(f"Autoavaliação - {secao}")
+        title_p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        if title_p.runs:
+            title_p.runs[0].bold = True
+            title_p.runs[0].font.size = Pt(11)
+            title_p.runs[0].font.color.rgb = RGBColor(31, 41, 55)
+
     fmt = title_p.paragraph_format
     fmt.space_before = Pt(6)
     fmt.space_after = Pt(6)
@@ -211,10 +249,19 @@ def insert_question_difficulty_tables(
     doc: Document,
     sections_data: list[dict],
     column_width_cm: float,
+    section_banners: dict[str, str] | None = None,
+    section_banner_width_cm: float | None = None,
 ) -> int:
     inserted = 0
     if not sections_data:
         return inserted
+
+    section_banner_map: dict[str, str] = {}
+    if isinstance(section_banners, dict):
+        for title, img in section_banners.items():
+            norm_title = normalize_text_key(title)
+            if norm_title:
+                section_banner_map[norm_title] = img
 
     # Todas as autoavaliações ficam no final do documento, na ordem das seções.
     block_title = doc.add_paragraph("Quadro de Autoavaliação por Seção")
@@ -233,11 +280,21 @@ def insert_question_difficulty_tables(
             doc,
             item,
             column_width_cm=column_width_cm,
+            section_banner_map=section_banner_map,
+            section_banner_width_cm=section_banner_width_cm,
         )
     return inserted
 
 
-def append_difficulty_report_appendix(doc: Document, report: dict) -> bool:
+def append_difficulty_report_appendix(
+    doc: Document,
+    report: dict,
+    *,
+    margin_top_cm: float = 2.0,
+    margin_bottom_cm: float = 2.0,
+    margin_left_cm: float = 2.5,
+    margin_right_cm: float = 2.5,
+) -> bool:
     sections = report.get("secoes") if isinstance(report, dict) else None
     if not sections:
         return False
@@ -247,10 +304,10 @@ def append_difficulty_report_appendix(doc: Document, report: dict) -> bool:
         section.orientation = WD_ORIENT.PORTRAIT
         section.page_width = Cm(21.0)
         section.page_height = Cm(29.7)
-        section.left_margin = Cm(1.8)
-        section.right_margin = Cm(1.8)
-        section.top_margin = Cm(1.8)
-        section.bottom_margin = Cm(1.8)
+        section.left_margin = Cm(margin_left_cm)
+        section.right_margin = Cm(margin_right_cm)
+        section.top_margin = Cm(margin_top_cm)
+        section.bottom_margin = Cm(margin_bottom_cm)
     except Exception:
         pass
 

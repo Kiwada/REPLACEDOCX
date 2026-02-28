@@ -11,7 +11,11 @@ from pathlib import Path
 from docx.image.exceptions import UnrecognizedImageError
 from docx.shared import Cm
 
-GABARITO_RE = re.compile(r"^\s*GABARITO:\s*[A-E]\s*$", re.IGNORECASE)
+GABARITO_RE = re.compile(
+    r"^\s*(?:GABARITO|RESPOSTA(?:\s+CORRETA)?)\s*[:\-]?\s*(?:ALTERNATIVA\s*)?(?P<alt>[A-E])?\s*[\)\.\-]?\s*$",
+    re.IGNORECASE,
+)
+ALTERNATIVE_ONLY_RE = re.compile(r"^\s*(?:ALTERNATIVA\s*)?(?P<alt>[A-E])\s*[\)\.\-]?\s*$", re.IGNORECASE)
 QUESTION_DIFFICULTY_RE = re.compile(
     r"^\s*(?:(?P<num>\d+)\s*[\.\)\-:]?\s*)?(?:NIVEL\s*[:\-]?\s*)?\(?\s*(?P<level>FACIL|MEDIA|DIFICIL)\s*\)?\s*[:\-\.]?\s*$"
 )

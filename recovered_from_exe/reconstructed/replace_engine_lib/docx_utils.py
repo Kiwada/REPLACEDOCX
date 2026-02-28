@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unicodedata
 
 from docx import Document
@@ -90,6 +91,33 @@ def apply_paragraph_layout(p, justify: bool) -> None:
 def apply_run_font(run, font_name: str, font_size: int) -> None:
     run.font.name = font_name
     run.font.size = Pt(font_size)
+
+
+def is_reference_caption_text(text: str) -> bool:
+    txt = (text or "").strip()
+    if not txt:
+        return False
+    norm = unicodedata.normalize("NFD", txt.upper())
+    norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
+    norm = re.sub(r"\s+", " ", norm)
+    return bool(re.match(r"^(FONTE|REFERENCIA|REFERENCIAS|DISPONIVEL\s+EM)\b", norm))
+
+
+def is_figure_caption_text(text: str) -> bool:
+    txt = (text or "").strip()
+    if not txt:
+        return False
+    norm = unicodedata.normalize("NFD", txt.upper())
+    norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
+    norm = re.sub(r"\s+", " ", norm)
+    return bool(re.match(r"^(FIGURA|IMAGEM|ILUSTRACAO|FOTO|GRAFICO|QUADRO|TABELA)\b", norm))
+
+
+def paragraph_has_drawing(paragraph) -> bool:
+    try:
+        return bool(paragraph._element.xpath(".//w:drawing"))
+    except Exception:
+        return False
 
 
 def insert_badge_run(p, img_path, badge_width_cm: float, badge_tag: str = BADGE_TAG) -> None:

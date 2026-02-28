@@ -97,6 +97,7 @@ Controle de artes de seção:
 ```bash
 python contextocli.py process "/caminho/arquivo.docx" --area biologia --section-banner-width-cm 15.5
 python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-section-banners
+python contextocli.py process "/caminho/arquivo.docx" --area biologia --no-format-text
 ```
 
 Tabelas de dificuldade por questão (autoavaliação):

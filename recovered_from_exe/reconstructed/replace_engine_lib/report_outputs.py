@@ -28,7 +28,6 @@ def default_report_paths(output_docx: Path) -> tuple[Path, Path]:
 def _build_difficulty_report_html(report: dict) -> str:
     totals = report["totais"]
     max_total = max((row["total"] for row in report["secoes"]), default=1)
-    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     row_html: list[str] = []
     for row in report["secoes"]:
@@ -215,12 +214,6 @@ def _build_difficulty_report_html(report: dict) -> str:
     .bar-split .medium {{ color: var(--medium); }}
     .bar-split .hard {{ color: var(--hard); }}
 
-    .footer {{
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 12px;
-    }}
-
     @media print {{
       body {{
         padding: 0;
@@ -241,8 +234,6 @@ def _build_difficulty_report_html(report: dict) -> str:
       <div class=\"meta\">
         <div><strong>Conteúdo:</strong> {escape(report["conteudo"])}</div>
         <div><strong>Área:</strong> {escape(report["area_conhecimento"])}</div>
-        <div><strong>Arquivo origem:</strong> {escape(report["arquivo_origem"])}</div>
-        <div><strong>Gerado em:</strong> {generated_at}</div>
       </div>
     </div>
 
@@ -268,7 +259,6 @@ def _build_difficulty_report_html(report: dict) -> str:
         {''.join(row_html)}
       </tbody>
     </table>
-    <div class=\"footer\">Arquivo gerado automaticamente pelo ReplaceDocx.</div>
   </div>
 </body>
 </html>"""

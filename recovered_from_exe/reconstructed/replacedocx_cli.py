@@ -86,6 +86,11 @@ def _configure_process_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--font-name", default="Arial", help="Fonte principal (default: Arial)")
     p.add_argument("--font-size", type=int, default=11, help="Tamanho da fonte (default: 11)")
     p.add_argument(
+        "--no-format-text",
+        action="store_true",
+        help="Não aplica formatação global de fonte/parágrafo no texto original.",
+    )
+    p.add_argument(
         "--badge-width-cm",
         type=float,
         default=1.3,
@@ -177,6 +182,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
         "area_conhecimento": args.area,
         "font_name": args.font_name,
         "font_size": args.font_size,
+        "format_text": not bool(args.no_format_text),
         "badge_width_cm": args.badge_width_cm,
         "column_width_cm": args.column_width_cm,
         "remove_gabarito": True,

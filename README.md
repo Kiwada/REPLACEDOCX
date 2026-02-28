@@ -6,9 +6,10 @@ Ferramenta de terminal para processar arquivos `.docx` de exercicios.
 
 - troca marcadores de dificuldade por capsulas visuais
 - troca titulos de secao por banners
-- remove linhas `GABARITO: X`
+- remove linhas de resposta (`GABARITO`, `RESPOSTA`) incluindo alternativa
 - adiciona tabelas de autoavaliacao no final
 - gera relatorio por secao (`facil`, `media`, `dificil`)
+- ajusta para fonte 8 apenas referencias abaixo de imagens (`Fonte`, `Referência`)
 - cria saida final com sufixo `_ok`
 
 ## Requisitos
@@ -86,6 +87,7 @@ Assets/
 ## Flags uteis (`process`)
 
 - `--area biologia`
+- `--no-format-text`
 - `--no-section-banners`
 - `--no-question-tables`
 - `--no-report-appendix`
