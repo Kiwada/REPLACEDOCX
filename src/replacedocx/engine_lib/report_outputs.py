@@ -24,12 +24,23 @@ def _ensure_writable_dir(path: Path) -> bool:
         return False
 
 
-def default_output_path(input_docx: Path) -> Path:
+def ensure_output_base_dir_writable() -> Path:
     base = output_base_dir()
     if not _ensure_writable_dir(base):
-        # Fallback local quando o volume externo não está montado/sem permissão.
-        base = Path(__file__).resolve().parents[3] / "saida_ok"
-        base.mkdir(parents=True, exist_ok=True)
+        raise PermissionError(
+            f"Diretório de saída indisponível ou sem permissão: {base}. "
+            "Monte o volume externo e tente novamente."
+        )
+    return base
+
+
+def force_output_in_base(output_docx: Path) -> Path:
+    base = ensure_output_base_dir_writable()
+    return base / output_docx.name
+
+
+def default_output_path(input_docx: Path) -> Path:
+    base = ensure_output_base_dir_writable()
     return base / f"{input_docx.stem}_ok{input_docx.suffix}"
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from docx import Document
@@ -7,15 +8,34 @@ from docx import Document
 from .common import QUESTION_DIFFICULTY_RE, normalize_text_key
 from .docx_utils import iter_paragraphs
 
+INLINE_QUESTION_DIFFICULTY_RE = re.compile(
+    r"^\s*(?:(?P<num_a>\d+)\s*[\.\)\-:]?\s*\(?\s*(?P<level_a>FACIL|MEDIA|MEDIO|MEDIAS|DIFICIL)\s*\)?|"
+    r"\(?\s*(?P<level_b>FACIL|MEDIA|MEDIO|MEDIAS|DIFICIL)\s*\)?\s*(?P<num_b>\d+)\s*[\.\)\-:]?)"
+)
+
 
 def section_aliases_for_report() -> dict[str, list[str]]:
     return {
-        "EXERCÍCIOS DE SALA": ["EXERCÍCIOS DE SALA"],
-        "EXERCÍCIOS PROPOSTOS": ["EXERCÍCIOS PROPOSTOS"],
+        "EXERCÍCIOS DE SALA": ["EXERCÍCIOS DE SALA", "EXERCÍCIO DE SALA"],
+        "EXERCÍCIOS PROPOSTOS": ["EXERCÍCIOS PROPOSTOS", "EXERCÍCIO PROPOSTO", "PROPOSTOS"],
         "SEÇÃO ENEM": ["SEÇÃO ENEM"],
-        "EXERCÍCIOS DE APROFUNDAMENTO": ["EXERCÍCIOS DE APROFUNDAMENTO"],
-        "EXERCÍCIOS REGIONAIS": ["EXERCÍCIOS REGIONAIS"],
-        "EXERCÍCIOS DISSERTATIVOS": ["EXERCÍCIOS DISSERTATIVOS", "EXERCÍCIO DISSERTATIVO"],
+        "EXERCÍCIOS DE APROFUNDAMENTO": [
+            "EXERCÍCIOS DE APROFUNDAMENTO",
+            "EXERCÍCIO DE APROFUNDAMENTO",
+            "APROFUNDAMENTO",
+        ],
+        "EXERCÍCIOS REGIONAIS": [
+            "EXERCÍCIOS REGIONAIS",
+            "QUESTÕES REGIONAIS",
+            "QUESTÃO REGIONAL",
+            "EXERCÍCIO REGIONAL",
+            "REGIONAIS",
+        ],
+        "EXERCÍCIOS DISSERTATIVOS": [
+            "EXERCÍCIOS DISSERTATIVOS",
+            "EXERCÍCIO DISSERTATIVO",
+            "DISSERTATIVOS",
+        ],
     }
 
 
@@ -38,12 +58,17 @@ def match_section_for_report(norm_txt: str) -> str | None:
 def extract_difficulty(text: str) -> str | None:
     norm_txt = normalize_text_key(text)
     match = QUESTION_DIFFICULTY_RE.match(norm_txt)
-    if not match:
+    raw = match.group("level") if match else None
+    if raw is None:
+        inline = INLINE_QUESTION_DIFFICULTY_RE.match(norm_txt)
+        if inline:
+            raw = inline.group("level_a") or inline.group("level_b")
+    if raw is None:
         return None
-    raw = match.group("level")
+
     if raw == "FACIL":
         return "facil"
-    if raw == "MEDIA":
+    if raw in {"MEDIA", "MEDIO", "MEDIAS"}:
         return "media"
     if raw == "DIFICIL":
         return "dificil"
@@ -53,13 +78,19 @@ def extract_difficulty(text: str) -> str | None:
 def extract_question_info(text: str) -> tuple[str | None, str] | None:
     norm_txt = normalize_text_key(text)
     match = QUESTION_DIFFICULTY_RE.match(norm_txt)
-    if not match:
-        return None
-    num = match.group("num")
-    level = match.group("level")
+    if match:
+        num = match.group("num")
+        level = match.group("level")
+    else:
+        inline = INLINE_QUESTION_DIFFICULTY_RE.match(norm_txt)
+        if not inline:
+            return None
+        num = inline.group("num_a") or inline.group("num_b")
+        level = inline.group("level_a") or inline.group("level_b")
+
     if level == "FACIL":
         return num, "facil"
-    if level == "MEDIA":
+    if level in {"MEDIA", "MEDIO", "MEDIAS"}:
         return num, "media"
     if level == "DIFICIL":
         return num, "dificil"

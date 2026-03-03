@@ -11,7 +11,11 @@ from .engine_lib.common import (
     default_section_banners_for_area,
     resolve_path,
 )
-from .engine_lib.report_outputs import default_output_path, save_difficulty_report
+from .engine_lib.report_outputs import (
+    default_output_path,
+    force_output_in_base,
+    save_difficulty_report,
+)
 
 CLI_NAME = "ContextoCLI"
 CLI_VERSION = "1.2.0"
@@ -77,7 +81,12 @@ def _build_common_options(parser: argparse.ArgumentParser) -> None:
 def _configure_process_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("process", help="Processa DOCX completo: banners, cápsulas, autoavaliação e relatórios.")
     p.add_argument("input_docx", type=Path, help="Caminho do arquivo .docx de entrada")
-    p.add_argument("-o", "--output", type=Path, help="Caminho do arquivo .docx de saída (opcional)")
+    p.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Nome/caminho do .docx de saída (o arquivo será salvo sempre em /Volumes/anthropic_externo/Documentos Processados CONTEXTO).",
+    )
     p.add_argument(
         "--finalize-word",
         action="store_true",
@@ -139,7 +148,7 @@ def _configure_report_parser(sub: argparse._SubParsersAction) -> None:
         "--output-docx",
         type=Path,
         default=None,
-        help="Arquivo .docx base para nomear relatórios (default: /Volumes/anthropic_externo/Documentos Processados CONTEXTO/<entrada>_ok.docx).",
+        help="Arquivo .docx base para nomear relatórios (sempre salvo em /Volumes/anthropic_externo/Documentos Processados CONTEXTO).",
     )
     _build_common_options(p)
     p.add_argument(
@@ -176,7 +185,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _cmd_process(args: argparse.Namespace) -> int:
     input_docx = _validate_input_docx(args.input_docx)
-    output_docx = _normalize_cli_path(args.output) if args.output else default_output_path(input_docx)
+    output_docx = (
+        force_output_in_base(_normalize_cli_path(args.output))
+        if args.output
+        else default_output_path(input_docx)
+    )
 
     cfg = {
         "area_conhecimento": args.area,
@@ -224,7 +237,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
 def _cmd_report(args: argparse.Namespace) -> int:
     input_docx = _validate_input_docx(args.input_docx)
     output_docx = (
-        _normalize_cli_path(args.output_docx)
+        force_output_in_base(_normalize_cli_path(args.output_docx))
         if args.output_docx is not None
         else default_output_path(input_docx)
     )

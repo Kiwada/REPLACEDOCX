@@ -11,6 +11,10 @@ from docx.shared import Cm, Pt, RGBColor
 
 from .common import BADGE_TAG, add_picture_resilient, resolve_path
 
+QUESTION_PREFIX_MARKER_RE = re.compile(
+    r"^\s*(?:(?P<num_a>\d+)\s*[\.\)\-:]?\s*(?P<marker_a>\(\s*[^()]{2,32}\s*\)|[^\s()]{2,20})|(?P<marker_b>\(\s*[^()]{2,32}\s*\)|[^\s()]{2,20})\s*(?P<num_b>\d+)\s*[\.\)\-:]?)"
+)
+
 
 def set_cell_fill(cell, fill_hex: str) -> None:
     tc_pr = cell._tc.get_or_add_tcPr()
@@ -132,6 +136,94 @@ def insert_badge_run(p, img_path, badge_width_cm: float, badge_tag: str = BADGE_
         return
 
 
+def _expand_markers(markers: dict[str, str]) -> dict[str, str]:
+    markers_expanded: dict[str, str] = {}
+    for raw_key, img in markers.items():
+        for variant in (
+            raw_key,
+            unicodedata.normalize("NFC", raw_key),
+            unicodedata.normalize("NFD", raw_key),
+        ):
+            if variant and variant not in markers_expanded:
+                markers_expanded[variant] = img
+    return markers_expanded
+
+
+def _resolve_marker_key(raw_marker: str, markers_expanded: dict[str, str]) -> str | None:
+    token = (raw_marker or "").strip()
+    if not token:
+        return None
+
+    candidates: list[str] = [token]
+    if token.startswith("(") and token.endswith(")"):
+        inner = token[1:-1].strip()
+        if inner:
+            candidates.append(inner)
+            candidates.append(f"({inner})")
+    else:
+        candidates.append(f"({token})")
+
+    variants: list[str] = []
+    for c in candidates:
+        variants.extend((c, unicodedata.normalize("NFC", c), unicodedata.normalize("NFD", c)))
+
+    seen: set[str] = set()
+    for candidate in variants:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate in markers_expanded:
+            return candidate
+    return None
+
+
+def replace_question_prefix_marker_in_paragraph(
+    p,
+    markers: dict[str, str],
+    badge_width_cm: float,
+    font_name: str,
+    font_size: int,
+    badge_tag: str = BADGE_TAG,
+) -> bool:
+    text = p.text or ""
+    if not text:
+        return False
+
+    match = QUESTION_PREFIX_MARKER_RE.match(text)
+    if not match:
+        return False
+
+    markers_expanded = _expand_markers(markers)
+    marker_group_name = "marker_a" if match.group("marker_a") is not None else "marker_b"
+    marker_raw = match.group(marker_group_name)
+    marker_key = _resolve_marker_key(marker_raw, markers_expanded)
+    if marker_key is None:
+        return False
+
+    img_path = resolve_path(markers_expanded[marker_key])
+    if not img_path.exists():
+        raise FileNotFoundError(f"Imagem não encontrada para marcador '{marker_key}': {img_path}")
+
+    marker_start = match.start(marker_group_name)
+    marker_end = match.end(marker_group_name)
+    prefix = text[:marker_start]
+    suffix = text[marker_end:]
+
+    p.clear()
+
+    if prefix:
+        run_prefix = p.add_run(prefix)
+        apply_run_font(run_prefix, font_name, font_size)
+
+    insert_badge_run(p, img_path, badge_width_cm, badge_tag=badge_tag)
+
+    if suffix:
+        run_suffix = p.add_run(suffix)
+        apply_run_font(run_suffix, font_name, font_size)
+
+    return True
+
+
 def replace_markers_in_paragraph(
     p,
     markers: dict[str, str],
@@ -145,16 +237,7 @@ def replace_markers_in_paragraph(
         return False
 
     # Expande marcadores para variantes NFC/NFD e prioriza match mais longo.
-    markers_expanded: dict[str, str] = {}
-    for raw_key, img in markers.items():
-        for variant in (
-            raw_key,
-            unicodedata.normalize("NFC", raw_key),
-            unicodedata.normalize("NFD", raw_key),
-        ):
-            if variant and variant not in markers_expanded:
-                markers_expanded[variant] = img
-
+    markers_expanded = _expand_markers(markers)
     keys = sorted(markers_expanded.keys(), key=len, reverse=True)
 
     if not any(k in text for k in keys):

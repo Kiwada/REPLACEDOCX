@@ -13,7 +13,7 @@ from .docx_utils import (
     set_table_width,
     style_cell_text,
 )
-from .report import difficulty_label
+from .report import difficulty_label, match_section_for_report
 
 
 def _replace_paragraph_with_section_banner(
@@ -63,15 +63,23 @@ def apply_section_banners(
 
         matched_title = None
         matched_img = None
-        for norm_title, img in normalized_map.items():
-            if (
-                norm_txt == norm_title
-                or norm_txt.startswith(norm_title + " ")
-                or norm_title in norm_txt
-            ):
-                matched_title = norm_title
-                matched_img = img
-                break
+        canonical = match_section_for_report(norm_txt)
+        if canonical:
+            norm_canonical = normalize_text_key(canonical)
+            if norm_canonical in normalized_map:
+                matched_title = norm_canonical
+                matched_img = normalized_map[norm_canonical]
+
+        if matched_img is None:
+            for norm_title, img in normalized_map.items():
+                if (
+                    norm_txt == norm_title
+                    or norm_txt.startswith(norm_title + " ")
+                    or norm_title in norm_txt
+                ):
+                    matched_title = norm_title
+                    matched_img = img
+                    break
 
         if matched_img is None:
             continue

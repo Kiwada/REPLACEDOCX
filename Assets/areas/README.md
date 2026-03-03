@@ -7,40 +7,40 @@ Assets/
   areas/
     biologia/
       capsulas/
-        facil.png
-        media.png
-        dificil.png
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
       secoes/
-        exercicios_sala.png
-        exercicios_propostos.png
-        secao_enem.png
-        exercicios_aprofundamento.png
-        exercicios_regionais.png
-        exercicios_dissertativos.png
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+        exercicios_aprofundamento.png|jpg|jpeg
+        exercicios_regionais.png|jpg|jpeg
+        exercicios_dissertativos.png|jpg|jpeg
     fisica/
       capsulas/
-        facil.png
-        media.png
-        dificil.png
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
       secoes/
-        exercicios_sala.png
-        exercicios_propostos.png
-        secao_enem.png
-        exercicios_aprofundamento.png
-        exercicios_regionais.png
-        exercicios_dissertativos.png
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+        exercicios_aprofundamento.png|jpg|jpeg
+        exercicios_regionais.png|jpg|jpeg
+        exercicios_dissertativos.png|jpg|jpeg
     quimica/
       capsulas/
-        facil.png
-        media.png
-        dificil.png
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
       secoes/
-        exercicios_sala.png
-        exercicios_propostos.png
-        secao_enem.png
-        exercicios_aprofundamento.png
-        exercicios_regionais.png
-        exercicios_dissertativos.png
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+        exercicios_aprofundamento.png|jpg|jpeg
+        exercicios_regionais.png|jpg|jpeg
+        exercicios_dissertativos.png|jpg|jpeg
 ```
 
 ## Como o script resolve
@@ -59,5 +59,6 @@ Assets/
 ## Regra de nomes
 
 - Pasta da área: minúscula e sem acentos (ex.: `linguagens`, `matematica`)
-- Arquivos das cápsulas: sempre `facil.png`, `media.png`, `dificil.png`
-- Arquivos de seção: `exercicios_sala.png`, `exercicios_propostos.png`, `secao_enem.png`, `exercicios_aprofundamento.png`, `exercicios_regionais.png`, `exercicios_dissertativos.png`
+- Arquivos das cápsulas: sempre `facil`, `media`, `dificil` (`.png`, `.jpg` ou `.jpeg`)
+- Arquivos de seção: `exercicios_sala`, `exercicios_propostos`, `secao_enem`, `exercicios_aprofundamento`, `exercicios_regionais`, `exercicios_dissertativos` (`.png`, `.jpg` ou `.jpeg`)
+- Equivalência de título (especial): `Questão Regional`, `Questões Regionais` e `Exercício Regional` são tratados como `Exercícios Regionais`.

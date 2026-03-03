@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import re
 import subprocess
@@ -17,7 +18,7 @@ GABARITO_RE = re.compile(
 )
 ALTERNATIVE_ONLY_RE = re.compile(r"^\s*(?:ALTERNATIVA\s*)?(?P<alt>[A-E])\s*[\)\.\-]?\s*$", re.IGNORECASE)
 QUESTION_DIFFICULTY_RE = re.compile(
-    r"^\s*(?:(?P<num>\d+)\s*[\.\)\-:]?\s*)?(?:NIVEL\s*[:\-]?\s*)?\(?\s*(?P<level>FACIL|MEDIA|DIFICIL)\s*\)?\s*[:\-\.]?\s*$"
+    r"^\s*(?:(?P<num>\d+)\s*[\.\)\-:]?\s*)?(?:NIVEL\s*[:\-]?\s*)?\(?\s*(?P<level>FACIL|MEDIA|MEDIO|MEDIAS|DIFICIL)\s*\)?\s*[:\-\.]?\s*$"
 )
 BADGE_TAG = "BADGE_REPLACE_DOCX"
 SECTION_TAG = "SECTION_BANNER_REPLACE_DOCX"
@@ -67,6 +68,26 @@ def normalize_text_key(text: str) -> str:
     return txt
 
 
+def _remove_accents(text: str) -> str:
+    txt = unicodedata.normalize("NFD", text or "")
+    return "".join(ch for ch in txt if unicodedata.category(ch) != "Mn")
+
+
+def _difficulty_variants(label: str) -> list[str]:
+    base = label.strip()
+    no_acc = _remove_accents(base)
+    candidates = {
+        base,
+        base.title(),
+        base.lower(),
+        no_acc,
+        no_acc.title(),
+        no_acc.lower(),
+    }
+    ordered = sorted((c for c in candidates if c), key=lambda s: (len(s), s))
+    return ordered
+
+
 def safe_tag_suffix(text: str) -> str:
     key = normalize_text_key(text)
     return re.sub(r"[^A-Z0-9]+", "_", key).strip("_") or "GENERIC"
@@ -75,20 +96,18 @@ def safe_tag_suffix(text: str) -> str:
 def default_markers_for_area(area: str) -> dict[str, str]:
     area_slug = normalize_area_slug(area)
     base = f"areas/{area_slug}/capsulas"
-    facil = f"{base}/facil.png"
-    media = f"{base}/media.png"
-    dificil = f"{base}/dificil.png"
-    return {
-        "(FÁCIL)": facil,
-        "(MÉDIA)": media,
-        "(DIFÍCIL)": dificil,
-        "FÁCIL": facil,
-        "MÉDIA": media,
-        "DIFÍCIL": dificil,
-        "FACIL": facil,
-        "MEDIA": media,
-        "DIFICIL": dificil,
-    }
+    levels = [
+        (f"{base}/facil.png", ["FÁCIL"]),
+        (f"{base}/media.png", ["MÉDIA", "MÉDIO", "MÉDIAS"]),
+        (f"{base}/dificil.png", ["DIFÍCIL"]),
+    ]
+    markers: dict[str, str] = {}
+    for img, labels in levels:
+        for label in labels:
+            for variant in _difficulty_variants(label):
+                markers[variant] = img
+                markers[f"({variant})"] = img
+    return markers
 
 
 def default_section_banners_for_area(area: str) -> dict[str, str]:
@@ -100,14 +119,17 @@ def default_section_banners_for_area(area: str) -> dict[str, str]:
         "SEÇÃO ENEM": f"{base}/secao_enem.png",
         "EXERCÍCIOS DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
         "EXERCÍCIOS REGIONAIS": f"{base}/exercicios_regionais.png",
+        "QUESTÕES REGIONAIS": f"{base}/exercicios_regionais.png",
+        "QUESTÃO REGIONAL": f"{base}/exercicios_regionais.png",
+        "EXERCÍCIO REGIONAL": f"{base}/exercicios_regionais.png",
         "EXERCÍCIO DISSERTATIVO": f"{base}/exercicios_dissertativos.png",
         "EXERCÍCIOS DISSERTATIVOS": f"{base}/exercicios_dissertativos.png",
     }
 
 
 def paths_with_image_extension_fallback(p: Path) -> list[Path]:
-    # Prioridade: JPG/JPEG primeiro para refletir artes novas em JPG.
-    preferred_exts = [".jpg", ".jpeg", ".png"]
+    # Prioridade: PNG primeiro para preservar cor/transparência de assets finais.
+    preferred_exts = [".png", ".jpg", ".jpeg"]
     image_exts = {".jpg", ".jpeg", ".png"}
 
     if p.suffix.lower() in image_exts:
@@ -126,20 +148,46 @@ def convert_image_for_docx(img_path: Path) -> Path:
 
     cache_dir = runtime_dir() / ".image_cache_docx"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    key = f"{img_path.resolve()}::{img_path.stat().st_mtime_ns}"
+    # Inclui versão do pipeline para invalidar cache antigo quando
+    # a lógica de conversão/colorimetria for aprimorada.
+    key = f"v3_srgb_embed::{img_path.resolve()}::{img_path.stat().st_mtime_ns}::{img_path.stat().st_size}"
     out_name = hashlib.sha1(key.encode("utf-8")).hexdigest() + ".png"
     out_path = cache_dir / out_name
     if out_path.exists():
         return out_path
 
-    # Tenta Pillow primeiro (se existir no ambiente).
+    # Tenta Pillow primeiro (se existir no ambiente), com conversão para sRGB.
     try:
-        from PIL import Image  # type: ignore
+        from PIL import Image, ImageCms  # type: ignore
 
         with Image.open(str(img_path)) as im:
+            src_icc = im.info.get("icc_profile")
+            srgb_icc = None
+            try:
+                srgb_profile = ImageCms.createProfile("sRGB")
+                srgb_icc = ImageCms.ImageCmsProfile(srgb_profile).tobytes()
+            except Exception:
+                srgb_profile = None
+
+            if src_icc:
+                try:
+                    src_profile = ImageCms.ImageCmsProfile(io.BytesIO(src_icc))
+                    if srgb_profile is not None:
+                        im = ImageCms.profileToProfile(
+                            im,
+                            src_profile,
+                            srgb_profile,
+                            outputMode="RGBA" if im.mode == "RGBA" else "RGB",
+                        )
+                except Exception:
+                    pass
+
             if im.mode not in {"RGB", "RGBA"}:
                 im = im.convert("RGB")
-            im.save(str(out_path), format="PNG")
+            save_kwargs = {"format": "PNG", "optimize": True}
+            if srgb_icc:
+                save_kwargs["icc_profile"] = srgb_icc
+            im.save(str(out_path), **save_kwargs)
         if out_path.exists():
             return out_path
     except Exception:
@@ -163,6 +211,11 @@ def convert_image_for_docx(img_path: Path) -> Path:
 
 
 def add_picture_resilient(run, img_path: Path, width_cm: float):
+    if img_path.suffix.lower() in {".jpg", ".jpeg"}:
+        converted = convert_image_for_docx(img_path)
+        if converted.exists():
+            img_path = converted
+
     try:
         return run.add_picture(str(img_path), width=Cm(width_cm))
     except UnrecognizedImageError:

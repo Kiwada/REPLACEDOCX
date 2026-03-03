@@ -13,6 +13,7 @@ from .common import (
     default_markers_for_area,
     default_section_banners_for_area,
     elog,
+    normalize_text_key,
 )
 from .docx_utils import (
     apply_paragraph_layout,
@@ -22,14 +23,18 @@ from .docx_utils import (
     iter_paragraphs,
     paragraph_has_drawing,
     remove_paragraph,
-    replace_markers_in_paragraph,
+    replace_question_prefix_marker_in_paragraph,
 )
 from .renderers import (
     append_difficulty_report_appendix,
     apply_section_banners,
     insert_question_difficulty_tables,
 )
-from .report import collect_questions_by_section, gerar_relatorio_dificuldade_por_secao
+from .report import (
+    collect_questions_by_section,
+    gerar_relatorio_dificuldade_por_secao,
+    match_section_for_report,
+)
 
 
 def _is_reference_below_image(paragraphs: list, idx: int, lookback: int = 3) -> bool:
@@ -72,6 +77,40 @@ def _apply_reference_caption_font(doc: Document, font_name: str, reference_font_
             updated += 1
 
     return updated
+
+
+def _replace_question_markers_in_exercise_sections(
+    doc: Document,
+    markers: dict[str, str],
+    badge_width_cm: float,
+    font_name: str,
+    font_size: int,
+) -> int:
+    replaced = 0
+    in_exercise_block = False
+
+    for p in doc.paragraphs:
+        txt = (p.text or "").strip()
+        if txt:
+            section = match_section_for_report(normalize_text_key(txt))
+            if section:
+                in_exercise_block = True
+                continue
+
+        if not in_exercise_block:
+            continue
+
+        if replace_question_prefix_marker_in_paragraph(
+            p,
+            markers,
+            badge_width_cm,
+            font_name,
+            font_size,
+            badge_tag=BADGE_TAG,
+        ):
+            replaced += 1
+
+    return replaced
 
 
 def processar_docx(input_path: str | Path, output_path: str | Path, config: dict):
@@ -174,6 +213,15 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
 
     sections_data = collect_questions_by_section(doc) if insert_question_tables else []
 
+    replaced_badges = _replace_question_markers_in_exercise_sections(
+        doc,
+        markers,
+        badge_width_cm,
+        font_name,
+        font_size,
+    )
+    elog("Replaced difficulty markers in exercise sections: " + str(replaced_badges))
+
     if insert_section_banners and section_banners:
         inserted = apply_section_banners(
             doc,
@@ -181,16 +229,6 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             section_banner_width_cm=section_banner_width_cm,
         )
         elog("Inserted section banners: " + str(inserted))
-
-    for p in iter_paragraphs(doc):
-        replace_markers_in_paragraph(
-            p,
-            markers,
-            badge_width_cm,
-            font_name,
-            font_size,
-            badge_tag=BADGE_TAG,
-        )
 
     ref_count = _apply_reference_caption_font(doc, font_name, reference_font_size=8)
     if ref_count:

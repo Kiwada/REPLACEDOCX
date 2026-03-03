@@ -10,6 +10,9 @@ Ferramenta de terminal para processar arquivos `.docx` de exercicios.
 - adiciona tabelas de autoavaliacao no final
 - gera relatorio por secao (`facil`, `media`, `dificil`)
 - ajusta para fonte 8 apenas referencias abaixo de imagens (`Fonte`, `Referência`)
+- reconhece variacoes de marcador de dificuldade:
+  - `1. (MÉDIA) ...`
+  - `(MÉDIA) 1. ...`
 - cria saida final com sufixo `_ok`
 
 ## Requisitos
@@ -38,6 +41,13 @@ Processar documento completo:
 python contextocli.py process "/caminho/arquivo.docx" --area biologia
 ```
 
+Processar por area:
+
+```bash
+python contextocli.py process "/caminho/arquivo.docx" --area quimica
+python contextocli.py process "/caminho/arquivo.docx" --area fisica
+```
+
 Gerar somente relatorios:
 
 ```bash
@@ -59,7 +69,11 @@ python contextocli.py process -h
 
 ## Saidas
 
-Por padrao, os arquivos sao salvos em `/Volumes/anthropic_externo/Documentos Processados CONTEXTO/`:
+Os arquivos sao salvos em:
+
+`/Volumes/anthropic_externo/Documentos Processados CONTEXTO/`
+
+Se o volume nao estiver montado ou sem permissao de escrita, a CLI retorna erro (nao usa fallback local).
 
 - `<nome>_ok.docx`
 - `<nome>_ok_relatorio_dificuldade.html`
@@ -93,7 +107,7 @@ Assets/
 - `--no-report-appendix`
 - `--no-report-pdf`
 - `--section-banner-width-cm 7.5`
-- `-o /caminho/saida.docx`
+- `-o nome_saida.docx` (apenas nome; sempre salva no diretorio de saida fixo)
 
 ## Compatibilidade
 
@@ -118,4 +132,6 @@ Caminho com espacos/acentos:
 python contextocli.py process "/Volumes/.../CAPITULO_8_...docx" --area biologia
 ```
 
-Se JPG nao entrar no DOCX, a engine tenta converter automaticamente para PNG.
+- A CLI aceita apenas `.docx` (nao processa `.doc` diretamente).
+- Se JPG nao entrar no DOCX, a engine converte automaticamente para PNG.
+- Para estabilidade visual no Word, imagens JPG (inclusive CMYK) sao convertidas para PNG sRGB durante a insercao.
