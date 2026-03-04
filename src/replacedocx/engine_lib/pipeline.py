@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -34,6 +35,11 @@ from .report import (
     collect_questions_by_section,
     gerar_relatorio_dificuldade_por_secao,
     match_section_for_report,
+)
+
+ANSWER_KEY_ONLY_LINE_RE = re.compile(
+    r"^\s*\d{1,3}\s*[:\)\.\-]\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*[A-E]\s*(?:\]|\))?\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -113,6 +119,64 @@ def _replace_question_markers_in_exercise_sections(
     return replaced
 
 
+def _remove_biologia_tail_answer_key_appendix(doc: Document) -> int:
+    paragraphs = list(doc.paragraphs)
+    if len(paragraphs) < 20:
+        return 0
+
+    tail_start = int(len(paragraphs) * 0.5)
+    start_idx: int | None = None
+
+    for i in range(tail_start, len(paragraphs)):
+        txt = (paragraphs[i].text or "").strip()
+        if not txt:
+            continue
+
+        norm_txt = normalize_text_key(txt)
+        if not match_section_for_report(norm_txt):
+            continue
+
+        answers_found = 0
+        scanned = 0
+        j = i + 1
+        while j < len(paragraphs) and scanned < 60:
+            next_txt = (paragraphs[j].text or "").strip()
+            if not next_txt:
+                j += 1
+                continue
+
+            scanned += 1
+            next_norm = normalize_text_key(next_txt)
+            if ANSWER_KEY_ONLY_LINE_RE.match(next_norm):
+                answers_found += 1
+            elif match_section_for_report(next_norm):
+                pass
+            elif next_norm.startswith(("CAPITULO", "AULA", "GABARITO", "RESPOSTA")):
+                pass
+            elif answers_found > 0:
+                break
+
+            j += 1
+
+        if answers_found >= 3:
+            start_idx = i
+            for k in range(max(tail_start, i - 3), i):
+                prev_norm = normalize_text_key((paragraphs[k].text or "").strip())
+                if prev_norm.startswith(("CAPITULO", "AULA", "GABARITO", "RESPOSTA")):
+                    start_idx = k
+                    break
+            break
+
+    if start_idx is None:
+        return 0
+
+    removed = 0
+    for idx in range(len(paragraphs) - 1, start_idx - 1, -1):
+        remove_paragraph(paragraphs[idx])
+        removed += 1
+    return removed
+
+
 def processar_docx(input_path: str | Path, output_path: str | Path, config: dict):
     elog("\n============================")
     elog("START " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -131,9 +195,10 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     justify = bool(config.get("justify", True))
     format_text = bool(config.get("format_text", True))
     area_conhecimento = (config.get("area_conhecimento") or "biologia").strip()
+    is_biologia = normalize_text_key(area_conhecimento) == "BIOLOGIA"
     insert_section_banners = bool(config.get("insert_section_banners", True))
     insert_question_tables = bool(config.get("insert_question_tables", True))
-    append_difficulty_report = bool(config.get("append_difficulty_report", True))
+    append_difficulty_report = bool(config.get("append_difficulty_report", False))
     difficulty_report_data = config.get("difficulty_report_data")
     if difficulty_report_data is not None and not isinstance(difficulty_report_data, dict):
         raise ValueError("Config inválida: 'difficulty_report_data' deve ser um dict.")
@@ -180,6 +245,24 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     else:
         elog("Skipped global text formatting (format_text=False).")
 
+    sections_data = (
+        collect_questions_by_section(doc, include_answer_key=is_biologia)
+        if insert_question_tables
+        else []
+    )
+    if is_biologia and sections_data:
+        total_q = sum(len(item.get("questoes") or []) for item in sections_data)
+        total_g = sum(
+            1
+            for item in sections_data
+            for q in (item.get("questoes") or [])
+            if q.get("gabarito")
+        )
+        elog(f"Biologia answer key mapped: {total_g}/{total_q}")
+        removed_tail = _remove_biologia_tail_answer_key_appendix(doc)
+        if removed_tail:
+            elog(f"Removed Biologia tail answer-key appendix paragraphs: {removed_tail}")
+
     if remove_gabarito:
         paragraphs = list(iter_paragraphs(doc))
         to_delete_idx: set[int] = set()
@@ -211,8 +294,6 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
 
         elog("Removed answer lines (gabarito/resposta): " + str(len(to_delete_idx)))
 
-    sections_data = collect_questions_by_section(doc) if insert_question_tables else []
-
     replaced_badges = _replace_question_markers_in_exercise_sections(
         doc,
         markers,
@@ -241,6 +322,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             column_width_cm=column_width_cm,
             section_banners=section_banners,
             section_banner_width_cm=section_banner_width_cm,
+            include_answer_key=is_biologia,
         )
         elog("Inserted question difficulty tables: " + str(inserted_tables))
 

@@ -112,6 +112,7 @@ def _insert_question_difficulty_table(
     column_width_cm: float,
     section_banner_map: dict[str, str] | None = None,
     section_banner_width_cm: float | None = None,
+    include_answer_key: bool = False,
 ) -> int:
     questoes = section_item.get("questoes") or []
     if not questoes:
@@ -166,7 +167,10 @@ def _insert_question_difficulty_table(
     fmt.space_after = Pt(6)
     fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
-    table = doc.add_table(rows=2 + len(questoes), cols=5)
+    if include_answer_key:
+        table = doc.add_table(rows=1 + len(questoes), cols=6)
+    else:
+        table = doc.add_table(rows=2 + len(questoes), cols=5)
     try:
         table.style = "Table Grid"
     except Exception:
@@ -175,14 +179,22 @@ def _insert_question_difficulty_table(
     table_width_cm = max(5.0, float(column_width_cm))
     set_table_width(table, table_width_cm)
 
-    # Proporções: Questão | Dificuldade | Acertou | Errou | Revisar
-    col_ratios = [0.30, 0.24, 0.15, 0.15, 0.16]
+    # Proporções:
+    # Biologia: Questão | Nível | Gabarito | Acertei | Errei | Revisar
+    # Demais:   Questão | Dificuldade | Acertei | Errou | Revisar
+    if include_answer_key:
+        col_ratios = [0.24, 0.18, 0.16, 0.14, 0.14, 0.14]
+    else:
+        col_ratios = [0.30, 0.24, 0.15, 0.15, 0.16]
     col_widths = [table_width_cm * ratio for ratio in col_ratios]
     for row in table.rows:
         for idx, width_cm in enumerate(col_widths):
             set_cell_width(row.cells[idx], width_cm)
 
-    headers = ["Questão", "Dificuldade", "Acertou", "Errou", "Revisar"]
+    if include_answer_key:
+        headers = ["Questão", "Nível", "Gabarito", "Acertei", "Errei", "Revisar"]
+    else:
+        headers = ["Questão", "Dificuldade", "Acertou", "Errou", "Revisar"]
     for col, text in enumerate(headers):
         cell = table.cell(0, col)
         cell.text = text
@@ -202,9 +214,16 @@ def _insert_question_difficulty_table(
         row = table.rows[i]
         row.cells[0].text = q["questao"]
         row.cells[1].text = difficulty_label(diff)
-        row.cells[2].text = "☐"
-        row.cells[3].text = "☐"
-        row.cells[4].text = "☐"
+
+        if include_answer_key:
+            row.cells[2].text = str(q.get("gabarito") or "-")
+            row.cells[3].text = "☐"
+            row.cells[4].text = "☐"
+            row.cells[5].text = "☐"
+        else:
+            row.cells[2].text = "☐"
+            row.cells[3].text = "☐"
+            row.cells[4].text = "☐"
 
         # Zebra rows para leitura.
         if i % 2 == 0:
@@ -220,30 +239,48 @@ def _insert_question_difficulty_table(
 
         style_cell_text(row.cells[0], align=WD_PARAGRAPH_ALIGNMENT.LEFT, size_pt=10)
         style_cell_text(row.cells[1], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True, size_pt=10)
-        for col in (2, 3, 4):
+        if include_answer_key:
             style_cell_text(
-                row.cells[col],
+                row.cells[2],
                 align=WD_PARAGRAPH_ALIGNMENT.CENTER,
                 bold=True,
-                color_hex="374151",
-                size_pt=12,
+                color_hex="111827",
+                size_pt=10,
             )
+            for col in (3, 4, 5):
+                style_cell_text(
+                    row.cells[col],
+                    align=WD_PARAGRAPH_ALIGNMENT.CENTER,
+                    bold=True,
+                    color_hex="374151",
+                    size_pt=12,
+                )
+        else:
+            for col in (2, 3, 4):
+                style_cell_text(
+                    row.cells[col],
+                    align=WD_PARAGRAPH_ALIGNMENT.CENTER,
+                    bold=True,
+                    color_hex="374151",
+                    size_pt=12,
+                )
 
-    # Linha de resumo visual no rodapé da tabela.
-    summary_idx = len(questoes) + 1
-    srow = table.rows[summary_idx]
-    srow.cells[0].text = "Resumo"
-    srow.cells[1].text = f"Fácil {counts['facil']} | Média {counts['media']} | Difícil {counts['dificil']}"
-    srow.cells[2].text = "Acertos: ____"
-    srow.cells[3].text = "Erros: ____"
-    srow.cells[4].text = "Revisar: ____"
-    for c in srow.cells:
-        set_cell_fill(c, "E5E7EB")
-    style_cell_text(srow.cells[0], align=WD_PARAGRAPH_ALIGNMENT.LEFT, bold=True)
-    style_cell_text(srow.cells[1], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
-    style_cell_text(srow.cells[2], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
-    style_cell_text(srow.cells[3], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
-    style_cell_text(srow.cells[4], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
+    if not include_answer_key:
+        # Linha de resumo visual no rodapé da tabela.
+        summary_idx = len(questoes) + 1
+        srow = table.rows[summary_idx]
+        srow.cells[0].text = "Resumo"
+        srow.cells[1].text = f"Fácil {counts['facil']} | Média {counts['media']} | Difícil {counts['dificil']}"
+        srow.cells[2].text = "Acertos: ____"
+        srow.cells[3].text = "Erros: ____"
+        srow.cells[4].text = "Revisar: ____"
+        for c in srow.cells:
+            set_cell_fill(c, "E5E7EB")
+        style_cell_text(srow.cells[0], align=WD_PARAGRAPH_ALIGNMENT.LEFT, bold=True)
+        style_cell_text(srow.cells[1], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
+        style_cell_text(srow.cells[2], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
+        style_cell_text(srow.cells[3], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
+        style_cell_text(srow.cells[4], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
 
     # Espaço entre tabelas no bloco final de autoavaliação.
     spacer = doc.add_paragraph("")
@@ -259,6 +296,7 @@ def insert_question_difficulty_tables(
     column_width_cm: float,
     section_banners: dict[str, str] | None = None,
     section_banner_width_cm: float | None = None,
+    include_answer_key: bool = False,
 ) -> int:
     inserted = 0
     if not sections_data:
@@ -290,6 +328,7 @@ def insert_question_difficulty_tables(
             column_width_cm=column_width_cm,
             section_banner_map=section_banner_map,
             section_banner_width_cm=section_banner_width_cm,
+            include_answer_key=include_answer_key,
         )
     return inserted
 

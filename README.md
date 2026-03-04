@@ -104,7 +104,7 @@ Assets/
 - `--no-format-text`
 - `--no-section-banners`
 - `--no-question-tables`
-- `--no-report-appendix`
+- `--with-report-appendix` (anexa o relatório A4 no DOCX; por padrão, fica apenas o quadro de autoavaliação)
 - `--no-report-pdf`
 - `--section-banner-width-cm 7.5`
 - `-o nome_saida.docx` (apenas nome; sempre salva no diretorio de saida fixo)

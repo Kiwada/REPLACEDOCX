@@ -129,15 +129,22 @@ def _configure_process_parser(sub: argparse._SubParsersAction) -> None:
         help="Desativa inserção das tabelas de autoavaliação por questão ao final das seções.",
     )
     p.add_argument(
-        "--no-report-appendix",
+        "--with-report-appendix",
         action="store_true",
-        help="Desativa anexo do relatório de dificuldade em A4 no final do DOCX.",
+        help="Anexa o relatório de dificuldade em A4 no final do DOCX (desativado por padrão).",
+    )
+    p.add_argument(
+        "--no-report-appendix",
+        action="store_false",
+        dest="with_report_appendix",
+        help=argparse.SUPPRESS,
     )
     p.add_argument(
         "--no-report-pdf",
         action="store_true",
         help="Desativa geração do relatório de dificuldade em PDF A4.",
     )
+    p.set_defaults(with_report_appendix=False)
     p.set_defaults(handler=_cmd_process)
 
 
@@ -212,7 +219,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
         input_docx,
         area_conhecimento=args.area,
     )
-    cfg["append_difficulty_report"] = not bool(args.no_report_appendix)
+    cfg["append_difficulty_report"] = bool(args.with_report_appendix)
     cfg["difficulty_report_data"] = report
 
     result = processar_docx(input_docx, output_docx, cfg)
