@@ -119,7 +119,7 @@ def _replace_question_markers_in_exercise_sections(
     return replaced
 
 
-def _remove_biologia_tail_answer_key_appendix(doc: Document) -> int:
+def _remove_tail_answer_key_appendix(doc: Document) -> int:
     paragraphs = list(doc.paragraphs)
     if len(paragraphs) < 20:
         return 0
@@ -195,9 +195,9 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     justify = bool(config.get("justify", True))
     format_text = bool(config.get("format_text", True))
     area_conhecimento = (config.get("area_conhecimento") or "biologia").strip()
-    is_biologia = normalize_text_key(area_conhecimento) == "BIOLOGIA"
     insert_section_banners = bool(config.get("insert_section_banners", True))
     insert_question_tables = bool(config.get("insert_question_tables", True))
+    is_biologia = normalize_text_key(area_conhecimento) == "BIOLOGIA"
     append_difficulty_report = bool(config.get("append_difficulty_report", False))
     difficulty_report_data = config.get("difficulty_report_data")
     if difficulty_report_data is not None and not isinstance(difficulty_report_data, dict):
@@ -246,11 +246,11 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
         elog("Skipped global text formatting (format_text=False).")
 
     sections_data = (
-        collect_questions_by_section(doc, include_answer_key=is_biologia)
+        collect_questions_by_section(doc, include_answer_key=True)
         if insert_question_tables
         else []
     )
-    if is_biologia and sections_data:
+    if sections_data:
         total_q = sum(len(item.get("questoes") or []) for item in sections_data)
         total_g = sum(
             1
@@ -258,10 +258,10 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             for q in (item.get("questoes") or [])
             if q.get("gabarito")
         )
-        elog(f"Biologia answer key mapped: {total_g}/{total_q}")
-        removed_tail = _remove_biologia_tail_answer_key_appendix(doc)
+        elog(f"Answer key mapped: {total_g}/{total_q}")
+        removed_tail = _remove_tail_answer_key_appendix(doc)
         if removed_tail:
-            elog(f"Removed Biologia tail answer-key appendix paragraphs: {removed_tail}")
+            elog(f"Removed tail answer-key appendix paragraphs: {removed_tail}")
 
     if remove_gabarito:
         paragraphs = list(iter_paragraphs(doc))
@@ -322,7 +322,8 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             column_width_cm=column_width_cm,
             section_banners=section_banners,
             section_banner_width_cm=section_banner_width_cm,
-            include_answer_key=is_biologia,
+            include_answer_key=True,
+            add_chapter_performance=is_biologia,
         )
         elog("Inserted question difficulty tables: " + str(inserted_tables))
 

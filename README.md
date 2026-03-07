@@ -8,6 +8,8 @@ Ferramenta de terminal para processar arquivos `.docx` de exercicios.
 - troca titulos de secao por banners
 - remove linhas de resposta (`GABARITO`, `RESPOSTA`) incluindo alternativa
 - adiciona tabelas de autoavaliacao no final
+  - formato: `Questão | Nível | Gabarito | Acertei | Errei | Revisar` (todas as áreas)
+  - remove automaticamente bloco final de gabarito por seção, quando existir
 - gera relatorio por secao (`facil`, `media`, `dificil`)
 - ajusta para fonte 8 apenas referencias abaixo de imagens (`Fonte`, `Referência`)
 - reconhece variacoes de marcador de dificuldade:

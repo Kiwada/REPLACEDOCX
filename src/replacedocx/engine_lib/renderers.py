@@ -113,6 +113,7 @@ def _insert_question_difficulty_table(
     section_banner_map: dict[str, str] | None = None,
     section_banner_width_cm: float | None = None,
     include_answer_key: bool = False,
+    add_chapter_performance: bool = False,
 ) -> int:
     questoes = section_item.get("questoes") or []
     if not questoes:
@@ -180,13 +181,23 @@ def _insert_question_difficulty_table(
     set_table_width(table, table_width_cm)
 
     # Proporções:
-    # Biologia: Questão | Nível | Gabarito | Acertei | Errei | Revisar
-    # Demais:   Questão | Dificuldade | Acertei | Errou | Revisar
+    # Com gabarito: Questão | Nível | Gabarito | Acertei | Errei | Revisar
+    # Sem gabarito: Questão | Dificuldade | Acertei | Errou | Revisar
     if include_answer_key:
-        col_ratios = [0.24, 0.18, 0.16, 0.14, 0.14, 0.14]
+        # Coluna "Nível" fixa em 1,44 cm; demais colunas dividem o espaço restante.
+        nivel_width_cm = 1.44
+        other_base_ratios = [0.24, 0.16, 0.14, 0.14, 0.14]  # Q, G, A, E, R
+        available_cm = max(1.0, table_width_cm - nivel_width_cm)
+        base_sum = sum(other_base_ratios) or 1.0
+        q_w = available_cm * (other_base_ratios[0] / base_sum)
+        g_w = available_cm * (other_base_ratios[1] / base_sum)
+        a_w = available_cm * (other_base_ratios[2] / base_sum)
+        e_w = available_cm * (other_base_ratios[3] / base_sum)
+        r_w = available_cm * (other_base_ratios[4] / base_sum)
+        col_widths = [q_w, nivel_width_cm, g_w, a_w, e_w, r_w]
     else:
         col_ratios = [0.30, 0.24, 0.15, 0.15, 0.16]
-    col_widths = [table_width_cm * ratio for ratio in col_ratios]
+        col_widths = [table_width_cm * ratio for ratio in col_ratios]
     for row in table.rows:
         for idx, width_cm in enumerate(col_widths):
             set_cell_width(row.cells[idx], width_cm)
@@ -216,7 +227,7 @@ def _insert_question_difficulty_table(
         row.cells[1].text = difficulty_label(diff)
 
         if include_answer_key:
-            row.cells[2].text = str(q.get("gabarito") or "-")
+            row.cells[2].text = str(q.get("gabarito") or "")
             row.cells[3].text = "☐"
             row.cells[4].text = "☐"
             row.cells[5].text = "☐"
@@ -282,6 +293,40 @@ def _insert_question_difficulty_table(
         style_cell_text(srow.cells[3], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
         style_cell_text(srow.cells[4], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True)
 
+    if add_chapter_performance:
+        summary_cols = 6 if include_answer_key else 5
+        summary = doc.add_table(rows=1, cols=summary_cols)
+        try:
+            summary.style = "Table Grid"
+        except Exception:
+            pass
+        summary.autofit = False
+        set_table_width(summary, table_width_cm)
+
+        summary_widths = col_widths
+        row = summary.rows[0]
+        for idx, width_cm in enumerate(summary_widths):
+            set_cell_width(row.cells[idx], width_cm)
+
+        row.cells[0].text = "Resumo"
+        if include_answer_key:
+            row.cells[1].text = ""
+            row.cells[2].text = ""
+            row.cells[3].text = "Acertos: ___"
+            row.cells[4].text = "Erros: ___"
+            row.cells[5].text = "Revisar: ___"
+        else:
+            row.cells[1].text = ""
+            row.cells[2].text = "Acertos: ___"
+            row.cells[3].text = "Erros: ___"
+            row.cells[4].text = "Revisar: ___"
+
+        for c in row.cells:
+            set_cell_fill(c, "E5E7EB")
+        style_cell_text(row.cells[0], align=WD_PARAGRAPH_ALIGNMENT.LEFT, bold=True, size_pt=10)
+        for col in range(1, summary_cols):
+            style_cell_text(row.cells[col], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True, size_pt=10)
+
     # Espaço entre tabelas no bloco final de autoavaliação.
     spacer = doc.add_paragraph("")
     spacer.paragraph_format.space_before = Pt(4)
@@ -297,6 +342,7 @@ def insert_question_difficulty_tables(
     section_banners: dict[str, str] | None = None,
     section_banner_width_cm: float | None = None,
     include_answer_key: bool = False,
+    add_chapter_performance: bool = False,
 ) -> int:
     inserted = 0
     if not sections_data:
@@ -329,6 +375,7 @@ def insert_question_difficulty_tables(
             section_banner_map=section_banner_map,
             section_banner_width_cm=section_banner_width_cm,
             include_answer_key=include_answer_key,
+            add_chapter_performance=add_chapter_performance,
         )
     return inserted
 
