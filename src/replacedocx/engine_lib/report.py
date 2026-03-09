@@ -27,12 +27,25 @@ QUESTION_LABEL_NUMBER_RE = re.compile(r"(\d+)\s*$")
 
 def section_aliases_for_report() -> dict[str, list[str]]:
     return {
-        "EXERCÍCIOS DE SALA": ["EXERCÍCIOS DE SALA", "EXERCÍCIO DE SALA"],
-        "EXERCÍCIOS PROPOSTOS": ["EXERCÍCIOS PROPOSTOS", "EXERCÍCIO PROPOSTO", "PROPOSTOS"],
-        "SEÇÃO ENEM": ["SEÇÃO ENEM"],
+        "EXERCÍCIOS DE SALA": [
+            "EXERCÍCIOS DE SALA",
+            "EXERCÍCIO DE SALA",
+            "QUESTÕES DE SALA",
+            "QUESTÃO DE SALA",
+        ],
+        "EXERCÍCIOS PROPOSTOS": [
+            "EXERCÍCIOS PROPOSTOS",
+            "EXERCÍCIO PROPOSTO",
+            "QUESTÕES PROPOSTAS",
+            "QUESTÃO PROPOSTA",
+            "PROPOSTOS",
+        ],
+        "SEÇÃO ENEM": ["SEÇÃO ENEM", "QUESTÕES ENEM", "QUESTÃO ENEM", "ENEM"],
         "EXERCÍCIOS DE APROFUNDAMENTO": [
             "EXERCÍCIOS DE APROFUNDAMENTO",
             "EXERCÍCIO DE APROFUNDAMENTO",
+            "QUESTÕES DE APROFUNDAMENTO",
+            "QUESTÃO DE APROFUNDAMENTO",
             "APROFUNDAMENTO",
         ],
         "EXERCÍCIOS REGIONAIS": [

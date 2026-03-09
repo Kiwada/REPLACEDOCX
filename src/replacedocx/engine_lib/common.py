@@ -113,18 +113,42 @@ def default_markers_for_area(area: str) -> dict[str, str]:
 def default_section_banners_for_area(area: str) -> dict[str, str]:
     area_slug = normalize_area_slug(area)
     base = f"areas/{area_slug}/secoes"
-    return {
+    jpg_base = f"{base}/JPG"
+
+    # Algumas áreas organizam seções em subpasta JPG.
+    project_jpg_dir = runtime_dir() / "Assets" / "areas" / area_slug / "secoes" / "JPG"
+    user_jpg_dir = assets_dir() / "areas" / area_slug / "secoes" / "JPG"
+    if project_jpg_dir.exists() or user_jpg_dir.exists():
+        base = jpg_base
+    banners = {
         "EXERCÍCIOS DE SALA": f"{base}/exercicios_sala.png",
+        "QUESTÕES DE SALA": f"{base}/exercicios_sala.png",
+        "QUESTÃO DE SALA": f"{base}/exercicios_sala.png",
         "EXERCÍCIOS PROPOSTOS": f"{base}/exercicios_propostos.png",
+        "QUESTÕES PROPOSTAS": f"{base}/exercicios_propostos.png",
+        "QUESTÃO PROPOSTA": f"{base}/exercicios_propostos.png",
         "SEÇÃO ENEM": f"{base}/secao_enem.png",
+        "QUESTÕES ENEM": f"{base}/secao_enem.png",
+        "QUESTÃO ENEM": f"{base}/secao_enem.png",
         "EXERCÍCIOS DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
+        "QUESTÕES DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
+        "QUESTÃO DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
         "EXERCÍCIOS REGIONAIS": f"{base}/exercicios_regionais.png",
         "QUESTÕES REGIONAIS": f"{base}/exercicios_regionais.png",
         "QUESTÃO REGIONAL": f"{base}/exercicios_regionais.png",
         "EXERCÍCIO REGIONAL": f"{base}/exercicios_regionais.png",
-        "EXERCÍCIO DISSERTATIVO": f"{base}/exercicios_dissertativos.png",
-        "EXERCÍCIOS DISSERTATIVOS": f"{base}/exercicios_dissertativos.png",
     }
+
+    # Em matemática, essa seção não é usada no material atual.
+    if area_slug != "matematica":
+        banners.update(
+            {
+                "EXERCÍCIO DISSERTATIVO": f"{base}/exercicios_dissertativos.png",
+                "EXERCÍCIOS DISSERTATIVOS": f"{base}/exercicios_dissertativos.png",
+            }
+        )
+
+    return banners
 
 
 def paths_with_image_extension_fallback(p: Path) -> list[Path]:
@@ -143,14 +167,14 @@ def paths_with_image_extension_fallback(p: Path) -> list[Path]:
 
 
 def convert_image_for_docx(img_path: Path) -> Path:
-    if img_path.suffix.lower() not in {".jpg", ".jpeg"}:
+    if img_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}:
         return img_path
 
     cache_dir = runtime_dir() / ".image_cache_docx"
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Inclui versão do pipeline para invalidar cache antigo quando
     # a lógica de conversão/colorimetria for aprimorada.
-    key = f"v3_srgb_embed::{img_path.resolve()}::{img_path.stat().st_mtime_ns}::{img_path.stat().st_size}"
+    key = f"v4_srgb_embed_any::{img_path.resolve()}::{img_path.stat().st_mtime_ns}::{img_path.stat().st_size}"
     out_name = hashlib.sha1(key.encode("utf-8")).hexdigest() + ".png"
     out_path = cache_dir / out_name
     if out_path.exists():
@@ -248,6 +272,22 @@ def resolve_path(p: str | Path) -> Path:
     expanded: list[Path] = []
     for cand in candidates:
         expanded.extend(paths_with_image_extension_fallback(cand))
+
+    # Fallback: alguns projetos organizam assets em subpastas de 1 nível
+    # (ex.: .../secoes/JPG/arquivo.png). Tenta localizar automaticamente.
+    nested_expanded: list[Path] = []
+    for cand in list(expanded):
+        parent = cand.parent
+        if not parent.exists():
+            continue
+        try:
+            for child in parent.iterdir():
+                if not child.is_dir():
+                    continue
+                nested_expanded.extend(paths_with_image_extension_fallback(child / cand.name))
+        except Exception:
+            continue
+    expanded.extend(nested_expanded)
 
     seen = set()
     for cand in expanded:

@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from docx import Document
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.shared import Cm
 
 from .common import (
@@ -74,10 +75,21 @@ def _apply_reference_caption_font(doc: Document, font_name: str, reference_font_
 
     for paragraphs in paragraph_groups:
         for i, p in enumerate(paragraphs):
-            if not is_reference_caption_text(p.text or ""):
+            raw_text = (p.text or "").strip()
+            if not is_reference_caption_text(raw_text):
                 continue
+
+            # Referências abaixo de imagem seguem a regra antiga; para garantir
+            # cobertura em teoria e exercícios, também aplica para linhas
+            # explícitas de fonte/disponível em.
             if not _is_reference_below_image(paragraphs, i):
-                continue
+                norm = normalize_text_key(raw_text)
+                if not (norm.startswith("FONTE") or norm.startswith("DISPONIVEL EM")):
+                    continue
+
+            p.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+            if not p.runs:
+                p.add_run("")
             for run in p.runs:
                 apply_run_font(run, font_name, reference_font_size)
             updated += 1
@@ -197,7 +209,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     area_conhecimento = (config.get("area_conhecimento") or "biologia").strip()
     insert_section_banners = bool(config.get("insert_section_banners", True))
     insert_question_tables = bool(config.get("insert_question_tables", True))
-    is_biologia = normalize_text_key(area_conhecimento) == "BIOLOGIA"
+    add_section_summary_row = bool(config.get("add_section_summary_row", True))
     append_difficulty_report = bool(config.get("append_difficulty_report", False))
     difficulty_report_data = config.get("difficulty_report_data")
     if difficulty_report_data is not None and not isinstance(difficulty_report_data, dict):
@@ -323,7 +335,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             section_banners=section_banners,
             section_banner_width_cm=section_banner_width_cm,
             include_answer_key=True,
-            add_chapter_performance=is_biologia,
+            add_chapter_performance=add_section_summary_row,
         )
         elog("Inserted question difficulty tables: " + str(inserted_tables))
 
