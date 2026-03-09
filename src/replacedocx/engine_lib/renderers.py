@@ -3,12 +3,15 @@ from __future__ import annotations
 from docx import Document
 from docx.enum.section import WD_ORIENT, WD_SECTION_START
 from docx.enum.text import WD_LINE_SPACING, WD_PARAGRAPH_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 from .common import SECTION_TAG, add_picture_resilient, elog, normalize_text_key, resolve_path, safe_tag_suffix
 from .docx_utils import (
     iter_paragraphs,
     set_cell_fill,
+    set_cell_no_wrap,
     set_cell_width,
     set_table_width,
     style_cell_text,
@@ -16,18 +19,29 @@ from .docx_utils import (
 from .report import difficulty_label, match_section_for_report
 
 
+def _set_section_single_column(section) -> None:
+    sect_pr = section._sectPr
+    cols = sect_pr.find(qn("w:cols"))
+    if cols is None:
+        cols = OxmlElement("w:cols")
+        sect_pr.append(cols)
+    cols.set(qn("w:num"), "1")
+    cols.set(qn("w:space"), "0")
+
+
 def _replace_paragraph_with_section_banner(
     p,
     img_path,
     section_banner_width_cm: float,
     section_tag: str,
+    alignment=WD_PARAGRAPH_ALIGNMENT.CENTER,
 ) -> None:
     # Substitui totalmente o título da seção pelo banner.
     p.clear()
     banner_run = p.add_run()
     pic = add_picture_resilient(banner_run, img_path, section_banner_width_cm)
 
-    p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p.alignment = alignment
     fmt = p.paragraph_format
     fmt.space_before = Pt(0)
     fmt.space_after = Pt(0)
@@ -148,6 +162,7 @@ def _insert_question_difficulty_table(
                     img_path=img_path,
                     section_banner_width_cm=banner_width,
                     section_tag=section_tag,
+                    alignment=WD_PARAGRAPH_ALIGNMENT.LEFT,
                 )
                 inserted_banner = True
             except Exception as exc:
@@ -184,8 +199,8 @@ def _insert_question_difficulty_table(
     # Com gabarito: Questão | Nível | Gabarito | Acertei | Errei | Revisar
     # Sem gabarito: Questão | Dificuldade | Acertei | Errou | Revisar
     if include_answer_key:
-        # Coluna "Nível" fixa em 1,44 cm; demais colunas dividem o espaço restante.
-        nivel_width_cm = 1.44
+        # Coluna "Nível" fixa em 1,8 cm; demais colunas dividem o espaço restante.
+        nivel_width_cm = 1.8
         other_base_ratios = [0.24, 0.16, 0.14, 0.14, 0.14]  # Q, G, A, E, R
         available_cm = max(1.0, table_width_cm - nivel_width_cm)
         base_sum = sum(other_base_ratios) or 1.0
@@ -210,12 +225,18 @@ def _insert_question_difficulty_table(
         cell = table.cell(0, col)
         cell.text = text
         set_cell_fill(cell, "1F2937")
+        header_size = 10
+        header_bold = True
+        if include_answer_key and col in (2, 3, 4, 5):
+            # Evita quebra de "Gabarito/Acertei/Errei/Revisar".
+            set_cell_no_wrap(cell, True)
+            header_bold = False
         style_cell_text(
             cell,
             align=WD_PARAGRAPH_ALIGNMENT.CENTER,
-            bold=True,
+            bold=header_bold,
             color_hex="FFFFFF",
-            size_pt=10,
+            size_pt=header_size,
         )
 
     counts = {"facil": 0, "media": 0, "dificil": 0}
@@ -254,17 +275,15 @@ def _insert_question_difficulty_table(
             style_cell_text(
                 row.cells[2],
                 align=WD_PARAGRAPH_ALIGNMENT.CENTER,
-                bold=True,
-                color_hex="111827",
+                bold=False,
                 size_pt=10,
             )
             for col in (3, 4, 5):
                 style_cell_text(
                     row.cells[col],
                     align=WD_PARAGRAPH_ALIGNMENT.CENTER,
-                    bold=True,
-                    color_hex="374151",
-                    size_pt=12,
+                    bold=False,
+                    size_pt=10,
                 )
         else:
             for col in (2, 3, 4):
@@ -315,6 +334,8 @@ def _insert_question_difficulty_table(
             row.cells[3].text = "Acertos: ___"
             row.cells[4].text = "Erros: ___"
             row.cells[5].text = "Revisar: ___"
+            for col in (2, 3, 4, 5):
+                set_cell_no_wrap(row.cells[col], True)
         else:
             row.cells[1].text = ""
             row.cells[2].text = "Acertos: ___"
@@ -325,7 +346,13 @@ def _insert_question_difficulty_table(
             set_cell_fill(c, "E5E7EB")
         style_cell_text(row.cells[0], align=WD_PARAGRAPH_ALIGNMENT.LEFT, bold=True, size_pt=10)
         for col in range(1, summary_cols):
-            style_cell_text(row.cells[col], align=WD_PARAGRAPH_ALIGNMENT.CENTER, bold=True, size_pt=10)
+            is_plain_col = include_answer_key and col in (2, 3, 4, 5)
+            style_cell_text(
+                row.cells[col],
+                align=WD_PARAGRAPH_ALIGNMENT.CENTER,
+                bold=not is_plain_col,
+                size_pt=10,
+            )
 
     # Espaço entre tabelas no bloco final de autoavaliação.
     spacer = doc.add_paragraph("")
@@ -343,10 +370,26 @@ def insert_question_difficulty_tables(
     section_banner_width_cm: float | None = None,
     include_answer_key: bool = False,
     add_chapter_performance: bool = False,
+    single_column_section: bool = True,
 ) -> int:
     inserted = 0
     if not sections_data:
         return inserted
+
+    effective_width_cm = float(column_width_cm)
+    if single_column_section:
+        try:
+            sec = doc.add_section(WD_SECTION_START.NEW_PAGE)
+            _set_section_single_column(sec)
+            text_width_cm = (
+                float(sec.page_width.cm)
+                - float(sec.left_margin.cm)
+                - float(sec.right_margin.cm)
+            )
+            # Usa largura real da página para evitar tabela espremida em layout de 2 colunas.
+            effective_width_cm = max(effective_width_cm, max(8.0, text_width_cm))
+        except Exception as exc:
+            elog(f"Failed to create single-column section for autoavaliação: {exc}")
 
     section_banner_map: dict[str, str] = {}
     if isinstance(section_banners, dict):
@@ -371,7 +414,7 @@ def insert_question_difficulty_tables(
         inserted += _insert_question_difficulty_table(
             doc,
             item,
-            column_width_cm=column_width_cm,
+            column_width_cm=effective_width_cm,
             section_banner_map=section_banner_map,
             section_banner_width_cm=section_banner_width_cm,
             include_answer_key=include_answer_key,

@@ -22,6 +22,7 @@ from .docx_utils import (
     apply_run_font,
     is_figure_caption_text,
     is_reference_caption_text,
+    is_reference_or_citation_text,
     iter_paragraphs,
     paragraph_has_drawing,
     remove_paragraph,
@@ -64,7 +65,11 @@ def _is_reference_below_image(paragraphs: list, idx: int, lookback: int = 3) -> 
     return False
 
 
-def _apply_reference_caption_font(doc: Document, font_name: str, reference_font_size: int = 8) -> int:
+def _apply_reference_caption_font(
+    doc: Document,
+    reference_font_name: str = "Arial",
+    reference_font_size: int = 8,
+) -> int:
     updated = 0
     paragraph_groups = [list(doc.paragraphs)]
 
@@ -76,22 +81,14 @@ def _apply_reference_caption_font(doc: Document, font_name: str, reference_font_
     for paragraphs in paragraph_groups:
         for i, p in enumerate(paragraphs):
             raw_text = (p.text or "").strip()
-            if not is_reference_caption_text(raw_text):
+            if not is_reference_or_citation_text(raw_text):
                 continue
-
-            # Referências abaixo de imagem seguem a regra antiga; para garantir
-            # cobertura em teoria e exercícios, também aplica para linhas
-            # explícitas de fonte/disponível em.
-            if not _is_reference_below_image(paragraphs, i):
-                norm = normalize_text_key(raw_text)
-                if not (norm.startswith("FONTE") or norm.startswith("DISPONIVEL EM")):
-                    continue
 
             p.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
             if not p.runs:
                 p.add_run("")
             for run in p.runs:
-                apply_run_font(run, font_name, reference_font_size)
+                apply_run_font(run, reference_font_name, reference_font_size)
             updated += 1
 
     return updated
@@ -323,9 +320,13 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
         )
         elog("Inserted section banners: " + str(inserted))
 
-    ref_count = _apply_reference_caption_font(doc, font_name, reference_font_size=8)
+    ref_count = _apply_reference_caption_font(
+        doc,
+        reference_font_name="Arial",
+        reference_font_size=8,
+    )
     if ref_count:
-        elog("Applied font size 8 to image references: " + str(ref_count))
+        elog("Applied Arial 8 and right alignment to references/citations: " + str(ref_count))
 
     if insert_question_tables and sections_data:
         inserted_tables = insert_question_difficulty_tables(
@@ -336,6 +337,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             section_banner_width_cm=section_banner_width_cm,
             include_answer_key=True,
             add_chapter_performance=add_section_summary_row,
+            single_column_section=True,
         )
         elog("Inserted question difficulty tables: " + str(inserted_tables))
 

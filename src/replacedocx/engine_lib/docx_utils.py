@@ -14,6 +14,11 @@ from .common import BADGE_TAG, add_picture_resilient, resolve_path
 QUESTION_PREFIX_MARKER_RE = re.compile(
     r"^\s*(?:(?P<num_a>\d+)\s*[\.\)\-:]?\s*(?P<marker_a>\(\s*[^()]{2,32}\s*\)|[^\s()]{2,20})|(?P<marker_b>\(\s*[^()]{2,32}\s*\)|[^\s()]{2,20})\s*(?P<num_b>\d+)\s*[\.\)\-:]?)"
 )
+PAREN_CITATION_RE = re.compile(r"^\(\s*.+\b(?:18|19|20)\d{2}\s*\)\.?$")
+INLINE_CITATION_RE = re.compile(r"^SEGUNDO\s+.+\((?:18|19|20)\d{2}\)")
+BIBLIOGRAPHIC_ENTRY_RE = re.compile(
+    r"^[A-Z][A-Z'`\-]+(?:\s+[A-Z][A-Z'`\-]+)*(?:\s+ET\s+AL\.?)?(?:\s*;\s*[A-Z][A-Z'`\-]+(?:\s+[A-Z][A-Z'`\-]+)*)*,\s+.+\b(?:18|19|20)\d{2}\.?$"
+)
 
 
 def set_cell_fill(cell, fill_hex: str) -> None:
@@ -38,6 +43,34 @@ def set_cell_width(cell, width_cm: float) -> None:
     tc_w.set(qn("w:w"), str(int(Cm(width_cm).twips)))
 
 
+def set_cell_no_wrap(cell, no_wrap: bool = True) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    no_wrap_el = tc_pr.find(qn("w:noWrap"))
+    if no_wrap:
+        if no_wrap_el is None:
+            no_wrap_el = OxmlElement("w:noWrap")
+            tc_pr.append(no_wrap_el)
+        no_wrap_el.set(qn("w:val"), "1")
+        return
+
+    if no_wrap_el is not None:
+        tc_pr.remove(no_wrap_el)
+
+
+def set_cell_fit_text(cell, fit_text: bool = True) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    fit_text_el = tc_pr.find(qn("w:tcFitText"))
+    if fit_text:
+        if fit_text_el is None:
+            fit_text_el = OxmlElement("w:tcFitText")
+            tc_pr.append(fit_text_el)
+        fit_text_el.set(qn("w:val"), "1")
+        return
+
+    if fit_text_el is not None:
+        tc_pr.remove(fit_text_el)
+
+
 def set_table_width(table, width_cm: float) -> None:
     tbl_pr = table._tbl.tblPr
     tbl_w = tbl_pr.find(qn("w:tblW"))
@@ -55,6 +88,7 @@ def style_cell_text(
     bold: bool = False,
     color_hex: str | None = None,
     size_pt: int = 10,
+    font_name: str = "Arial",
 ) -> None:
     if not cell.paragraphs:
         return
@@ -64,6 +98,16 @@ def style_cell_text(
         p.add_run("")
     for run in p.runs:
         run.bold = bold
+        run.font.name = font_name
+        r_pr = run._element.get_or_add_rPr()
+        r_fonts = r_pr.find(qn("w:rFonts"))
+        if r_fonts is None:
+            r_fonts = OxmlElement("w:rFonts")
+            r_pr.append(r_fonts)
+        r_fonts.set(qn("w:ascii"), font_name)
+        r_fonts.set(qn("w:hAnsi"), font_name)
+        r_fonts.set(qn("w:eastAsia"), font_name)
+        r_fonts.set(qn("w:cs"), font_name)
         run.font.size = Pt(size_pt)
         if color_hex:
             run.font.color.rgb = RGBColor.from_string(color_hex)
@@ -105,6 +149,31 @@ def is_reference_caption_text(text: str) -> bool:
     norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
     norm = re.sub(r"\s+", " ", norm)
     return bool(re.match(r"^(FONTE|REFERENCIA|REFERENCIAS|DISPONIVEL\s+EM)\b", norm))
+
+
+def is_reference_or_citation_text(text: str) -> bool:
+    txt = (text or "").strip()
+    if not txt:
+        return False
+
+    if is_reference_caption_text(txt):
+        return True
+
+    norm = unicodedata.normalize("NFD", txt.upper())
+    norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
+    norm = re.sub(r"\s+", " ", norm)
+
+    if "DISPONIVEL EM" in norm or "ACESSO EM" in norm:
+        return True
+    if " IN: " in norm and re.search(r"\b(?:18|19|20)\d{2}\b", norm):
+        return True
+    if PAREN_CITATION_RE.match(norm):
+        return True
+    if INLINE_CITATION_RE.match(norm):
+        return True
+    if BIBLIOGRAPHIC_ENTRY_RE.match(norm):
+        return True
+    return False
 
 
 def is_figure_caption_text(text: str) -> bool:
