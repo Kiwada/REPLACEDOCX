@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .engine import gerar_relatorio_dificuldade_por_secao, processar_docx
 from .engine_lib.common import (
+    canonicalize_area,
     default_markers_for_area,
     default_section_banners_for_area,
     resolve_path,
@@ -74,7 +75,7 @@ def _build_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--area",
         default="biologia",
-        help="Área do conhecimento para buscar assets em Assets/areas/<area>/... (default: biologia).",
+        help="Área do conhecimento (biologia, quimica, fisica). Também aceita acentos e variações.",
     )
 
 
@@ -192,6 +193,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _cmd_process(args: argparse.Namespace) -> int:
     input_docx = _validate_input_docx(args.input_docx)
+    area = canonicalize_area(args.area)
+    format_text_enabled = not bool(args.no_format_text)
+    if area == "matematica":
+        format_text_enabled = False
     output_docx = (
         force_output_in_base(_normalize_cli_path(args.output))
         if args.output
@@ -199,10 +204,10 @@ def _cmd_process(args: argparse.Namespace) -> int:
     )
 
     cfg = {
-        "area_conhecimento": args.area,
+        "area_conhecimento": area,
         "font_name": args.font_name,
         "font_size": args.font_size,
-        "format_text": not bool(args.no_format_text),
+        "format_text": format_text_enabled,
         "badge_width_cm": args.badge_width_cm,
         "column_width_cm": args.column_width_cm,
         "remove_gabarito": True,
@@ -217,7 +222,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
 
     report = gerar_relatorio_dificuldade_por_secao(
         input_docx,
-        area_conhecimento=args.area,
+        area_conhecimento=area,
     )
     cfg["append_difficulty_report"] = bool(args.with_report_appendix)
     cfg["difficulty_report_data"] = report
@@ -230,7 +235,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
     )
 
     print("Processado com sucesso.")
-    print("Área:", args.area)
+    print("Área:", area)
     print("Entrada:", input_docx)
     print("Saída:", result["arquivo_saida"])
     print("Relatório HTML:", report_html)
@@ -243,6 +248,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
 
 def _cmd_report(args: argparse.Namespace) -> int:
     input_docx = _validate_input_docx(args.input_docx)
+    area = canonicalize_area(args.area)
     output_docx = (
         force_output_in_base(_normalize_cli_path(args.output_docx))
         if args.output_docx is not None
@@ -253,7 +259,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
     report = gerar_relatorio_dificuldade_por_secao(
         input_docx,
-        area_conhecimento=args.area,
+        area_conhecimento=area,
     )
     report_html, report_pdf = save_difficulty_report(
         report,
@@ -262,7 +268,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     )
 
     print("Relatórios gerados com sucesso.")
-    print("Área:", args.area)
+    print("Área:", area)
     print("Entrada:", input_docx)
     print("Base de saída:", output_docx)
     print("Relatório HTML:", report_html)
@@ -274,7 +280,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_check_assets(args: argparse.Namespace) -> int:
-    area = (args.area or "biologia").strip() or "biologia"
+    area = canonicalize_area(args.area)
 
     marker_paths = sorted(set(default_markers_for_area(area).values()))
     section_paths = sorted(set(default_section_banners_for_area(area).values()))

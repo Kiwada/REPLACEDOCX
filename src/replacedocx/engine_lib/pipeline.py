@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from .common import (
     ALTERNATIVE_ONLY_RE,
     BADGE_TAG,
     GABARITO_RE,
+    canonicalize_area,
     default_markers_for_area,
     default_section_banners_for_area,
     elog,
@@ -35,13 +35,10 @@ from .renderers import (
 )
 from .report import (
     collect_questions_by_section,
+    extract_answer_pairs,
     gerar_relatorio_dificuldade_por_secao,
+    is_standalone_answer_key_line,
     match_section_for_report,
-)
-
-ANSWER_KEY_ONLY_LINE_RE = re.compile(
-    r"^\s*\d{1,3}\s*[:\)\.\-]\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*[A-E]\s*(?:\]|\))?\s*$",
-    re.IGNORECASE,
 )
 
 
@@ -156,8 +153,9 @@ def _remove_tail_answer_key_appendix(doc: Document) -> int:
 
             scanned += 1
             next_norm = normalize_text_key(next_txt)
-            if ANSWER_KEY_ONLY_LINE_RE.match(next_norm):
-                answers_found += 1
+            next_pairs = extract_answer_pairs(next_norm)
+            if next_pairs and is_standalone_answer_key_line(next_norm):
+                answers_found += len(next_pairs)
             elif match_section_for_report(next_norm):
                 pass
             elif next_norm.startswith(("CAPITULO", "AULA", "GABARITO", "RESPOSTA")):
@@ -202,8 +200,10 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     column_width_cm = float(config.get("column_width_cm", 7.5))
     remove_gabarito = bool(config.get("remove_gabarito", True))
     justify = bool(config.get("justify", True))
+    area_conhecimento = canonicalize_area(config.get("area_conhecimento"))
     format_text = bool(config.get("format_text", True))
-    area_conhecimento = (config.get("area_conhecimento") or "biologia").strip()
+    if area_conhecimento == "matematica":
+        format_text = False
     insert_section_banners = bool(config.get("insert_section_banners", True))
     insert_question_tables = bool(config.get("insert_question_tables", True))
     add_section_summary_row = bool(config.get("add_section_summary_row", True))
@@ -252,7 +252,10 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             for r in p.runs:
                 apply_run_font(r, font_name, font_size)
     else:
-        elog("Skipped global text formatting (format_text=False).")
+        if area_conhecimento == "matematica":
+            elog("Skipped global text formatting (area=matematica).")
+        else:
+            elog("Skipped global text formatting (format_text=False).")
 
     sections_data = (
         collect_questions_by_section(doc, include_answer_key=True)
@@ -278,8 +281,11 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
 
         for i, p in enumerate(paragraphs):
             txt = (p.text or "").strip()
+            norm_txt = normalize_text_key(txt)
             m = GABARITO_RE.match(txt)
             if not m:
+                if is_standalone_answer_key_line(norm_txt):
+                    to_delete_idx.add(i)
                 continue
             to_delete_idx.add(i)
 

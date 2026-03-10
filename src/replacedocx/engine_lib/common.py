@@ -61,6 +61,21 @@ def normalize_area_slug(area: str) -> str:
     return txt or "geral"
 
 
+def canonicalize_area(area: str | None) -> str:
+    slug = normalize_area_slug(area or "")
+    aliases = {
+        "bio": "biologia",
+        "biologia": "biologia",
+        "quim": "quimica",
+        "quimica": "quimica",
+        "fis": "fisica",
+        "fisica": "fisica",
+    }
+    if not slug or slug == "geral":
+        return "biologia"
+    return aliases.get(slug, slug)
+
+
 def normalize_text_key(text: str) -> str:
     txt = unicodedata.normalize("NFD", (text or "").strip().upper())
     txt = "".join(ch for ch in txt if unicodedata.category(ch) != "Mn")
@@ -94,7 +109,7 @@ def safe_tag_suffix(text: str) -> str:
 
 
 def default_markers_for_area(area: str) -> dict[str, str]:
-    area_slug = normalize_area_slug(area)
+    area_slug = canonicalize_area(area)
     base = f"areas/{area_slug}/capsulas"
     levels = [
         (f"{base}/facil.png", ["FÁCIL"]),
@@ -111,7 +126,7 @@ def default_markers_for_area(area: str) -> dict[str, str]:
 
 
 def default_section_banners_for_area(area: str) -> dict[str, str]:
-    area_slug = normalize_area_slug(area)
+    area_slug = canonicalize_area(area)
     base = f"areas/{area_slug}/secoes"
     jpg_base = f"{base}/JPG"
 
@@ -138,6 +153,13 @@ def default_section_banners_for_area(area: str) -> dict[str, str]:
         "QUESTÃO REGIONAL": f"{base}/exercicios_regionais.png",
         "EXERCÍCIO REGIONAL": f"{base}/exercicios_regionais.png",
     }
+
+    # Em matemática, usar explicitamente a arte customizada de sala.
+    if area_slug == "matematica":
+        sala_custom = f"areas/{area_slug}/secoes/exercicios_de_sala.jpg"
+        banners["EXERCÍCIOS DE SALA"] = sala_custom
+        banners["QUESTÕES DE SALA"] = sala_custom
+        banners["QUESTÃO DE SALA"] = sala_custom
 
     # Em matemática, essa seção não é usada no material atual.
     if area_slug != "matematica":

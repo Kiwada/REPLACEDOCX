@@ -5,7 +5,7 @@ from pathlib import Path
 
 from docx import Document
 
-from .common import QUESTION_DIFFICULTY_RE, normalize_text_key
+from .common import QUESTION_DIFFICULTY_RE, canonicalize_area, normalize_text_key
 from .docx_utils import iter_paragraphs
 
 INLINE_QUESTION_DIFFICULTY_RE = re.compile(
@@ -21,6 +21,14 @@ ANSWER_KEY_MULTI_PAIR_RE = re.compile(
 )
 ANSWER_KEY_INLINE_ALT_RE = re.compile(
     r"^\s*(?:GABARITO|RESPOSTA(?:\s+CORRETA)?)\s*[:\-]?\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?\s*$"
+)
+ANSWER_KEY_SINGLE_PAIR_LOOSE_RE = re.compile(
+    r"^\s*(?:QUESTAO\s*|Q\s*)?[\(\[]?\s*\d{1,3}\s*[\)\]]?\s*(?:º|°|ª)?\s*"
+    r"(?:[:=\.\)\(\-–—/])?\s*(?:ALTERNATIVA\s*)?[\(\[]?\s*[A-E]\s*[\)\]]?\s*$"
+)
+ANSWER_KEY_PAIR_TOKEN_LOOSE_RE = re.compile(
+    r"(?:QUESTAO\s*|Q\s*)?[\(\[]?\s*(?P<num>\d{1,3})\s*[\)\]]?\s*(?:º|°|ª)?\s*"
+    r"(?:[:=\.\)\(\-–—/])?\s*(?:ALTERNATIVA\s*)?[\(\[]?\s*(?P<alt>[A-E])\b\s*[\)\]]?"
 )
 QUESTION_LABEL_NUMBER_RE = re.compile(r"(\d+)\s*$")
 
@@ -135,7 +143,7 @@ def _is_answer_key_header(norm_txt: str) -> bool:
     return norm_txt.startswith("GABARITO") or norm_txt.startswith("RESPOSTA")
 
 
-def _extract_answer_pairs(norm_txt: str) -> list[tuple[str, str]]:
+def extract_answer_pairs(norm_txt: str) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     if not norm_txt:
         return pairs
@@ -145,11 +153,37 @@ def _extract_answer_pairs(norm_txt: str) -> list[tuple[str, str]]:
         pairs.append((str(int(line_match.group("num"))), line_match.group("alt").upper()))
         return pairs
 
+    # Formatos frequentes (Química/Física):
+    # - 1-A / 2-B / 3-C
+    # - (1) A ; (2) D ; (3) B
+    # - Q1:A | Q2:C | Q3:E
+    # - 1 A 2 C 3 D (vários pares na mesma linha)
+    loose_pairs = list(ANSWER_KEY_PAIR_TOKEN_LOOSE_RE.finditer(norm_txt))
+    if loose_pairs:
+        # Com apenas um par, só aceita se a linha inteira for "somente gabarito".
+        if len(loose_pairs) == 1 and not ANSWER_KEY_SINGLE_PAIR_LOOSE_RE.match(norm_txt):
+            return pairs
+        for match in loose_pairs:
+            num = str(int(match.group("num")))
+            alt = match.group("alt").upper()
+            pairs.append((num, alt))
+        if pairs:
+            return pairs
+
     for match in ANSWER_KEY_MULTI_PAIR_RE.finditer(norm_txt):
         num = str(int(match.group("num")))
         alt = match.group("alt").upper()
         pairs.append((num, alt))
     return pairs
+
+
+def is_standalone_answer_key_line(norm_txt: str) -> bool:
+    pairs = extract_answer_pairs(norm_txt)
+    if not pairs:
+        return False
+    if len(pairs) > 1:
+        return True
+    return bool(ANSWER_KEY_SINGLE_PAIR_LOOSE_RE.match(norm_txt))
 
 
 def _match_section_in_answer_key_context(norm_txt: str) -> str | None:
@@ -202,7 +236,7 @@ def _extract_answer_keys_by_section(doc: Document) -> dict[str, dict[str, str]]:
 
         target_section = current_section or "SEM SEÇÃO"
         collected = 0
-        inline_pairs = _extract_answer_pairs(norm_txt)
+        inline_pairs = extract_answer_pairs(norm_txt)
         if inline_pairs:
             for num, alt in inline_pairs:
                 answers.setdefault(target_section, {})[num] = alt
@@ -226,7 +260,7 @@ def _extract_answer_keys_by_section(doc: Document) -> dict[str, dict[str, str]]:
             if _match_section_in_answer_key_context(next_norm):
                 break
 
-            pairs = _extract_answer_pairs(next_norm)
+            pairs = extract_answer_pairs(next_norm)
             if not pairs:
                 if collected > 0:
                     break
@@ -258,7 +292,7 @@ def _extract_answer_keys_by_section(doc: Document) -> dict[str, dict[str, str]]:
                 target_section = section
                 continue
 
-            pairs = _extract_answer_pairs(norm_txt)
+            pairs = extract_answer_pairs(norm_txt)
             if not pairs:
                 continue
 
@@ -281,7 +315,7 @@ def _extract_answer_keys_by_section(doc: Document) -> dict[str, dict[str, str]]:
             target_section = section
             continue
 
-        pairs = _extract_answer_pairs(norm_txt)
+        pairs = extract_answer_pairs(norm_txt)
         if not pairs:
             continue
 
@@ -352,6 +386,7 @@ def gerar_relatorio_dificuldade_por_secao(
     input_path: str | Path,
     area_conhecimento: str = "biologia",
 ) -> dict:
+    area_conhecimento = canonicalize_area(area_conhecimento)
     input_path = Path(input_path)
     doc = Document(str(input_path))
 
