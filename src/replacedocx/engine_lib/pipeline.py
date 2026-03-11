@@ -127,10 +127,11 @@ def _replace_question_markers_in_exercise_sections(
 
 def _remove_tail_answer_key_appendix(doc: Document) -> int:
     paragraphs = list(doc.paragraphs)
-    if len(paragraphs) < 20:
+    if len(paragraphs) < 30:
         return 0
 
-    tail_start = int(len(paragraphs) * 0.5)
+    # Heurística conservadora: só tenta detectar apêndice no terço final.
+    tail_start = int(len(paragraphs) * 0.65)
     start_idx: int | None = None
 
     for i in range(tail_start, len(paragraphs)):
@@ -145,7 +146,7 @@ def _remove_tail_answer_key_appendix(doc: Document) -> int:
         answers_found = 0
         scanned = 0
         j = i + 1
-        while j < len(paragraphs) and scanned < 60:
+        while j < len(paragraphs) and scanned < 80:
             next_txt = (paragraphs[j].text or "").strip()
             if not next_txt:
                 j += 1
@@ -165,7 +166,7 @@ def _remove_tail_answer_key_appendix(doc: Document) -> int:
 
             j += 1
 
-        if answers_found >= 3:
+        if answers_found >= 4:
             start_idx = i
             for k in range(max(tail_start, i - 3), i):
                 prev_norm = normalize_text_key((paragraphs[k].text or "").strip())
@@ -175,6 +176,91 @@ def _remove_tail_answer_key_appendix(doc: Document) -> int:
             break
 
     if start_idx is None:
+        return 0
+
+    # Evita corte no meio de conteúdo real.
+    min_tail_start_idx = int(len(paragraphs) * 0.60)
+    if start_idx < min_tail_start_idx:
+        elog(
+            "Skipped tail answer-key removal (start too early): "
+            f"start_idx={start_idx}, min_tail_start_idx={min_tail_start_idx}"
+        )
+        return 0
+
+    # Confiança extra para evitar cortar conteúdo real (ex.: seção regionais).
+    # Só remove quando o bloco final parece claramente um apêndice de gabarito.
+    section_headers = 0
+    answer_lines = 0
+    non_answer_lines = 0
+    has_answer_header = False
+    for p in paragraphs[start_idx:]:
+        txt = (p.text or "").strip()
+        if not txt:
+            continue
+        norm_txt = normalize_text_key(txt)
+        if match_section_for_report(norm_txt):
+            section_headers += 1
+            continue
+        pairs = extract_answer_pairs(norm_txt)
+        if pairs and is_standalone_answer_key_line(norm_txt):
+            answer_lines += len(pairs)
+            continue
+        if norm_txt.startswith(("CAPITULO", "AULA", "GABARITO", "RESPOSTA")):
+            if norm_txt.startswith(("GABARITO", "RESPOSTA")):
+                has_answer_header = True
+            continue
+        non_answer_lines += 1
+
+    header_window_start = max(0, start_idx - 8)
+    header_window_end = min(len(paragraphs), start_idx + 4)
+    for p in paragraphs[header_window_start:header_window_end]:
+        txt = (p.text or "").strip()
+        if not txt:
+            continue
+        norm_txt = normalize_text_key(txt)
+        if norm_txt.startswith("RESPOSTA") or "GABARITO" in norm_txt:
+            has_answer_header = True
+            break
+
+    # Se antes do suposto apêndice quase não há conteúdo real, o arquivo
+    # provavelmente é um gabarito inteiro (não um apêndice final).
+    pre_content_lines = 0
+    pre_answer_lines = 0
+    for p in paragraphs[:start_idx]:
+        txt = (p.text or "").strip()
+        if not txt:
+            continue
+        norm_txt = normalize_text_key(txt)
+        if match_section_for_report(norm_txt):
+            continue
+        pairs = extract_answer_pairs(norm_txt)
+        if pairs and is_standalone_answer_key_line(norm_txt):
+            pre_answer_lines += len(pairs)
+            continue
+        if norm_txt.startswith(("CAPITULO", "AULA", "GABARITO", "RESPOSTA")):
+            continue
+        pre_content_lines += 1
+
+    min_pre_content = max(4, int(len(paragraphs) * 0.06))
+    if pre_content_lines < min_pre_content:
+        elog(
+            "Skipped tail answer-key removal (document looks like full answer key): "
+            f"pre_content={pre_content_lines}, pre_answers={pre_answer_lines}, "
+            f"min_pre_content={min_pre_content}"
+        )
+        return 0
+
+    if not (
+        has_answer_header
+        and section_headers >= 2
+        and answer_lines >= 6
+        and non_answer_lines <= 2
+    ):
+        elog(
+            "Skipped tail answer-key removal (low confidence): "
+            f"header={has_answer_header}, sections={section_headers}, "
+            f"answers={answer_lines}, non_answers={non_answer_lines}"
+        )
         return 0
 
     removed = 0
