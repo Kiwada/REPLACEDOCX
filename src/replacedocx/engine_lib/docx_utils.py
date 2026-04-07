@@ -193,6 +193,17 @@ def paragraph_has_drawing(paragraph) -> bool:
         return False
 
 
+def paragraph_has_office_math(paragraph) -> bool:
+    try:
+        return bool(
+            paragraph._element.xpath(
+                ".//*[local-name()='oMath' or local-name()='oMathPara']"
+            )
+        )
+    except Exception:
+        return False
+
+
 def insert_badge_run(p, img_path, badge_width_cm: float, badge_tag: str = BADGE_TAG) -> None:
     run = p.add_run()
     pic = add_picture_resilient(run, img_path, badge_width_cm)
@@ -246,6 +257,135 @@ def _resolve_marker_key(raw_marker: str, markers_expanded: dict[str, str]) -> st
     return None
 
 
+def _element_visible_text(element) -> str:
+    chunks: list[str] = []
+    for node in element.iter():
+        if node.tag == qn("w:t"):
+            chunks.append(node.text or "")
+        elif node.tag == qn("w:tab"):
+            chunks.append("\t")
+        elif node.tag in {qn("w:br"), qn("w:cr")}:
+            chunks.append("\n")
+    return "".join(chunks)
+
+
+def _detach_new_run_element(run):
+    el = run._element
+    el.getparent().remove(el)
+    return el
+
+
+def _build_text_run_element(p, text: str, font_name: str, font_size: int):
+    if not text:
+        return None
+    run = p.add_run(text)
+    apply_run_font(run, font_name, font_size)
+    return _detach_new_run_element(run)
+
+
+def _build_badge_run_element(
+    p,
+    img_path,
+    badge_width_cm: float,
+    badge_tag: str = BADGE_TAG,
+):
+    run = p.add_run()
+    pic = add_picture_resilient(run, img_path, badge_width_cm)
+    try:
+        pic._inline.docPr.set("descr", badge_tag)
+        pic._inline.docPr.set("title", badge_tag)
+    except Exception:
+        pass
+    return _detach_new_run_element(run)
+
+
+def _replace_prefix_marker_preserving_non_text(
+    p,
+    marker_start: int,
+    marker_end: int,
+    img_path,
+    badge_width_cm: float,
+    font_name: str,
+    font_size: int,
+    badge_tag: str = BADGE_TAG,
+) -> None:
+    paragraph_el = p._element
+    original_children = [child for child in paragraph_el if child.tag != qn("w:pPr")]
+    for child in original_children:
+        paragraph_el.remove(child)
+
+    text_pos = 0
+    badge_inserted = False
+
+    for child in original_children:
+        child_text = _element_visible_text(child)
+        if not child_text:
+            if not badge_inserted and text_pos >= marker_end:
+                paragraph_el.append(
+                    _build_badge_run_element(
+                        p,
+                        img_path,
+                        badge_width_cm,
+                        badge_tag=badge_tag,
+                    )
+                )
+                badge_inserted = True
+            paragraph_el.append(child)
+            continue
+
+        child_start = text_pos
+        child_end = child_start + len(child_text)
+
+        if child_end <= marker_start:
+            paragraph_el.append(child)
+        elif child_start >= marker_end:
+            if not badge_inserted:
+                paragraph_el.append(
+                    _build_badge_run_element(
+                        p,
+                        img_path,
+                        badge_width_cm,
+                        badge_tag=badge_tag,
+                    )
+                )
+                badge_inserted = True
+            paragraph_el.append(child)
+        else:
+            before_text = child_text[: max(0, marker_start - child_start)]
+            after_text = child_text[max(0, marker_end - child_start) :]
+
+            before_el = _build_text_run_element(p, before_text, font_name, font_size)
+            if before_el is not None:
+                paragraph_el.append(before_el)
+
+            if not badge_inserted:
+                paragraph_el.append(
+                    _build_badge_run_element(
+                        p,
+                        img_path,
+                        badge_width_cm,
+                        badge_tag=badge_tag,
+                    )
+                )
+                badge_inserted = True
+
+            after_el = _build_text_run_element(p, after_text, font_name, font_size)
+            if after_el is not None:
+                paragraph_el.append(after_el)
+
+        text_pos = child_end
+
+    if not badge_inserted:
+        paragraph_el.append(
+            _build_badge_run_element(
+                p,
+                img_path,
+                badge_width_cm,
+                badge_tag=badge_tag,
+            )
+        )
+
+
 def replace_question_prefix_marker_in_paragraph(
     p,
     markers: dict[str, str],
@@ -277,6 +417,20 @@ def replace_question_prefix_marker_in_paragraph(
     marker_end = match.end(marker_group_name)
     prefix = text[:marker_start]
     suffix = text[marker_end:]
+
+    # `p.clear()` remove OMML/drawings; aqui substituímos só o marcador textual.
+    if paragraph_has_office_math(p) or paragraph_has_drawing(p):
+        _replace_prefix_marker_preserving_non_text(
+            p,
+            marker_start=marker_start,
+            marker_end=marker_end,
+            img_path=img_path,
+            badge_width_cm=badge_width_cm,
+            font_name=font_name,
+            font_size=font_size,
+            badge_tag=badge_tag,
+        )
+        return True
 
     p.clear()
 
