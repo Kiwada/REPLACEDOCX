@@ -14,6 +14,8 @@ pip install weasyprint
 
 ```bash
 python contextocli.py process "/path/input.docx" --area biologia
+python contextocli.py process "/path/input.docx" --area linguagens
+python contextocli.py process "/path/input.docx" --area historia
 python contextocli.py report "/path/input.docx" --area biologia
 python contextocli.py check-assets --area biologia
 ```

@@ -48,6 +48,10 @@ Processar por area:
 ```bash
 python contextocli.py process "/caminho/arquivo.docx" --area quimica
 python contextocli.py process "/caminho/arquivo.docx" --area fisica
+python contextocli.py process "/caminho/arquivo.docx" --area linguagens
+python contextocli.py process "/caminho/arquivo.docx" --area historia
+python contextocli.py process "/caminho/arquivo.docx" --area filosofia
+python contextocli.py process "/caminho/arquivo.docx" --area sociologia
 ```
 
 Gerar somente relatorios:
@@ -98,6 +102,24 @@ Assets/
         exercicios_aprofundamento.png|jpg|jpeg
         exercicios_regionais.png|jpg|jpeg
         exercicios_dissertativos.png|jpg|jpeg
+    linguagens/
+      capsulas/
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
+      secoes/
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+    historia|filosofia|sociologia/
+      capsulas/
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
+      secoes/
+        exercicios_basicos.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
 ```
 
 ## Flags uteis (`process`)

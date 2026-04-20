@@ -101,7 +101,7 @@ def _replace_question_markers_in_exercise_sections(
     replaced = 0
     in_exercise_block = False
 
-    for p in doc.paragraphs:
+    for p in iter_paragraphs(doc):
         txt = (p.text or "").strip()
         if txt:
             section = match_section_for_report(normalize_text_key(txt))
@@ -285,6 +285,7 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
     badge_width_cm = float(config.get("badge_width_cm", 1.3))
     column_width_cm = float(config.get("column_width_cm", 7.5))
     remove_gabarito = bool(config.get("remove_gabarito", True))
+    preserve_paragraphs = bool(config.get("preserve_paragraphs", False))
     justify = bool(config.get("justify", True))
     area_conhecimento = canonicalize_area(config.get("area_conhecimento"))
     format_text = bool(config.get("format_text", True))
@@ -357,43 +358,49 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
             if q.get("gabarito")
         )
         elog(f"Answer key mapped: {total_g}/{total_q}")
-        removed_tail = _remove_tail_answer_key_appendix(doc)
-        if removed_tail:
-            elog(f"Removed tail answer-key appendix paragraphs: {removed_tail}")
+        if preserve_paragraphs:
+            elog("Skipped tail answer-key removal (preserve_paragraphs=True)")
+        else:
+            removed_tail = _remove_tail_answer_key_appendix(doc)
+            if removed_tail:
+                elog(f"Removed tail answer-key appendix paragraphs: {removed_tail}")
 
     if remove_gabarito:
-        paragraphs = list(iter_paragraphs(doc))
-        to_delete_idx: set[int] = set()
+        if preserve_paragraphs:
+            elog("Skipped answer-line removal (preserve_paragraphs=True)")
+        else:
+            paragraphs = list(iter_paragraphs(doc))
+            to_delete_idx: set[int] = set()
 
-        for i, p in enumerate(paragraphs):
-            txt = (p.text or "").strip()
-            norm_txt = normalize_text_key(txt)
-            m = GABARITO_RE.match(txt)
-            if not m:
-                if is_standalone_answer_key_line(norm_txt):
-                    to_delete_idx.add(i)
-                continue
-            to_delete_idx.add(i)
-
-            # Caso comum:
-            # "Resposta:" em uma linha e alternativa ("A", "B", ...) na próxima.
-            if m.groupdict().get("alt"):
-                continue
-
-            j = i + 1
-            while j < len(paragraphs):
-                next_txt = (paragraphs[j].text or "").strip()
-                if not next_txt:
-                    j += 1
+            for i, p in enumerate(paragraphs):
+                txt = (p.text or "").strip()
+                norm_txt = normalize_text_key(txt)
+                m = GABARITO_RE.match(txt)
+                if not m:
+                    if is_standalone_answer_key_line(norm_txt):
+                        to_delete_idx.add(i)
                     continue
-                if ALTERNATIVE_ONLY_RE.match(next_txt):
-                    to_delete_idx.add(j)
-                break
+                to_delete_idx.add(i)
 
-        for idx in sorted(to_delete_idx, reverse=True):
-            remove_paragraph(paragraphs[idx])
+                # Caso comum:
+                # "Resposta:" em uma linha e alternativa ("A", "B", ...) na próxima.
+                if m.groupdict().get("alt"):
+                    continue
 
-        elog("Removed answer lines (gabarito/resposta): " + str(len(to_delete_idx)))
+                j = i + 1
+                while j < len(paragraphs):
+                    next_txt = (paragraphs[j].text or "").strip()
+                    if not next_txt:
+                        j += 1
+                        continue
+                    if ALTERNATIVE_ONLY_RE.match(next_txt):
+                        to_delete_idx.add(j)
+                    break
+
+            for idx in sorted(to_delete_idx, reverse=True):
+                remove_paragraph(paragraphs[idx])
+
+            elog("Removed answer lines (gabarito/resposta): " + str(len(to_delete_idx)))
 
     replaced_badges = _replace_question_markers_in_exercise_sections(
         doc,
@@ -421,11 +428,18 @@ def processar_docx(input_path: str | Path, output_path: str | Path, config: dict
         elog("Applied Arial 8 and right alignment to references/citations: " + str(ref_count))
 
     if insert_question_tables and sections_data:
+        autoeval_section_banners = dict(section_banners)
+        if area_conhecimento in {"historia", "filosofia", "sociologia"}:
+            autoeval_section_banners = {
+                title: img
+                for title, img in section_banners.items()
+                if match_section_for_report(normalize_text_key(title)) != "SEÇÃO ENEM"
+            }
         inserted_tables = insert_question_difficulty_tables(
             doc,
             sections_data,
             column_width_cm=column_width_cm,
-            section_banners=section_banners,
+            section_banners=autoeval_section_banners,
             section_banner_width_cm=section_banner_width_cm,
             include_answer_key=True,
             add_chapter_performance=add_section_summary_row,

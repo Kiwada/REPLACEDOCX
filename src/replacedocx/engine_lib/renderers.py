@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from docx import Document
 from docx.enum.section import WD_ORIENT, WD_SECTION_START
 from docx.enum.text import WD_LINE_SPACING, WD_PARAGRAPH_ALIGNMENT
@@ -15,8 +17,70 @@ from .docx_utils import (
     set_cell_width,
     set_table_width,
     style_cell_text,
+    trim_paragraph_leading_text,
 )
-from .report import difficulty_label, match_section_for_report
+from .report import difficulty_label, match_section_for_report, section_aliases_for_report
+
+
+def _matches_section_title(norm_txt: str, norm_title: str) -> bool:
+    if norm_txt == norm_title:
+        return True
+    if norm_txt.startswith(norm_title + ":"):
+        return True
+    if (
+        norm_txt.startswith(norm_title + " -")
+        or norm_txt.startswith(norm_title + " –")
+        or norm_txt.startswith(norm_title + " —")
+    ):
+        return True
+    return False
+
+
+def _normalized_aliases_for_section(canonical_title: str | None, raw_title: str | None) -> list[str]:
+    aliases: list[str] = []
+    if canonical_title:
+        aliases.append(canonical_title)
+        aliases.extend(section_aliases_for_report().get(canonical_title, []))
+    if raw_title:
+        aliases.append(raw_title)
+
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for alias in aliases:
+        norm_alias = normalize_text_key(alias)
+        if not norm_alias or norm_alias in seen:
+            continue
+        seen.add(norm_alias)
+        normalized.append(norm_alias)
+    normalized.sort(key=len, reverse=True)
+    return normalized
+
+
+def _section_paragraph_has_trailing_content(norm_txt: str, normalized_aliases: list[str]) -> bool:
+    for norm_alias in normalized_aliases:
+        if not norm_txt.startswith(norm_alias):
+            continue
+        remainder = norm_txt[len(norm_alias) :]
+        cleaned = re.sub(r"[\s:–—\-]+", "", remainder)
+        return bool(cleaned)
+    return False
+
+
+def _find_section_prefix_end(text: str, aliases: list[str]) -> int | None:
+    seen: set[str] = set()
+    candidates = sorted((alias for alias in aliases if alias), key=len, reverse=True)
+    for alias in candidates:
+        if alias in seen:
+            continue
+        seen.add(alias)
+        match = re.match(
+            rf"^\s*{re.escape(alias)}(?:\s*[:\-–—]?\s*)",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if match and text[match.end() :].strip():
+            return match.end()
+    return None
 
 
 def _set_section_single_column(section) -> None:
@@ -77,20 +141,18 @@ def apply_section_banners(
 
         matched_title = None
         matched_img = None
+        matched_canonical = None
         canonical = match_section_for_report(norm_txt)
         if canonical:
             norm_canonical = normalize_text_key(canonical)
             if norm_canonical in normalized_map:
                 matched_title = norm_canonical
                 matched_img = normalized_map[norm_canonical]
+                matched_canonical = canonical
 
         if matched_img is None:
             for norm_title, img in normalized_map.items():
-                if (
-                    norm_txt == norm_title
-                    or norm_txt.startswith(norm_title + " ")
-                    or norm_title in norm_txt
-                ):
+                if _matches_section_title(norm_txt, norm_title):
                     matched_title = norm_title
                     matched_img = img
                     break
@@ -99,6 +161,7 @@ def apply_section_banners(
             continue
 
         section_tag = f"{SECTION_TAG}_{safe_tag_suffix(matched_title)}"
+        normalized_aliases = _normalized_aliases_for_section(matched_canonical, matched_title)
 
         img_path = resolve_path(matched_img)
         if not img_path.exists():
@@ -106,12 +169,28 @@ def apply_section_banners(
             continue
 
         try:
-            _replace_paragraph_with_section_banner(
-                p,
-                img_path=img_path,
-                section_banner_width_cm=section_banner_width_cm,
-                section_tag=section_tag,
-            )
+            if _section_paragraph_has_trailing_content(norm_txt, normalized_aliases):
+                banner_p = p.insert_paragraph_before("")
+                _replace_paragraph_with_section_banner(
+                    banner_p,
+                    img_path=img_path,
+                    section_banner_width_cm=section_banner_width_cm,
+                    section_tag=section_tag,
+                )
+
+                prefix_end = _find_section_prefix_end(
+                    txt,
+                    [matched_canonical or "", *section_aliases_for_report().get(matched_canonical or "", []), matched_title or ""],
+                )
+                if prefix_end is not None:
+                    trim_paragraph_leading_text(p, prefix_end)
+            else:
+                _replace_paragraph_with_section_banner(
+                    p,
+                    img_path=img_path,
+                    section_banner_width_cm=section_banner_width_cm,
+                    section_tag=section_tag,
+                )
             inserted += 1
         except Exception as exc:
             elog(f"Section banner failed for '{txt}': {img_path} ({exc})")
@@ -143,11 +222,7 @@ def _insert_question_difficulty_table(
         matched_img = section_banner_map.get(norm_secao)
         if matched_img is None:
             for norm_title, img in section_banner_map.items():
-                if (
-                    norm_secao == norm_title
-                    or norm_secao.startswith(norm_title + " ")
-                    or norm_title in norm_secao
-                ):
+                if _matches_section_title(norm_secao, norm_title):
                     matched_img = img
                     break
 
@@ -239,13 +314,13 @@ def _insert_question_difficulty_table(
             size_pt=header_size,
         )
 
-    counts = {"facil": 0, "media": 0, "dificil": 0}
+    counts = {"facil": 0, "media": 0, "dificil": 0, "neutro": 0}
     for i, q in enumerate(questoes, start=1):
-        diff = q["dificuldade"]
-        counts[diff] += 1
+        diff = q.get("dificuldade") or "neutro"
+        counts[diff] = counts.get(diff, 0) + 1
         row = table.rows[i]
         row.cells[0].text = q["questao"]
-        row.cells[1].text = difficulty_label(diff)
+        row.cells[1].text = "" if diff == "neutro" else difficulty_label(diff)
 
         if include_answer_key:
             row.cells[2].text = str(q.get("gabarito") or "")
@@ -266,6 +341,7 @@ def _insert_question_difficulty_table(
             "facil": "DCFCE7",
             "media": "FEF3C7",
             "dificil": "FEE2E2",
+            "neutro": "E5E7EB",
         }.get(diff, "EEF2FF")
         set_cell_fill(row.cells[1], diff_fill)
 

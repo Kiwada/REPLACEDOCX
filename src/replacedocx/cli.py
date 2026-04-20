@@ -11,6 +11,7 @@ from .engine_lib.common import (
     default_markers_for_area,
     default_section_banners_for_area,
     resolve_path,
+    runtime_dir,
 )
 from .engine_lib.report_outputs import (
     default_output_path,
@@ -75,7 +76,7 @@ def _build_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--area",
         default="biologia",
-        help="Área do conhecimento (biologia, quimica, fisica). Também aceita acentos e variações.",
+        help="Área do conhecimento (biologia, quimica, fisica, linguagens, historia, filosofia, sociologia). Também aceita acentos e variações.",
     )
 
 
@@ -128,6 +129,11 @@ def _configure_process_parser(sub: argparse._SubParsersAction) -> None:
         "--no-question-tables",
         action="store_true",
         help="Desativa inserção das tabelas de autoavaliação por questão ao final das seções.",
+    )
+    p.add_argument(
+        "--preserve-paragraphs",
+        action="store_true",
+        help="Preserva todos os parágrafos originais, sem remover linhas de gabarito/apêndice final.",
     )
     p.add_argument(
         "--with-report-appendix",
@@ -211,6 +217,7 @@ def _cmd_process(args: argparse.Namespace) -> int:
         "badge_width_cm": args.badge_width_cm,
         "column_width_cm": args.column_width_cm,
         "remove_gabarito": True,
+        "preserve_paragraphs": bool(args.preserve_paragraphs),
         "justify": True,
         "finalize_word": bool(args.finalize_word),
         "force_inline_wrap": True,
@@ -294,7 +301,8 @@ def _cmd_check_assets(args: argparse.Namespace) -> int:
         if resolved.exists():
             found.append((kind, rel_path, resolved))
         else:
-            missing.append((kind, rel_path, resolved))
+            expected = runtime_dir() / "Assets" / rel_path
+            missing.append((kind, rel_path, expected))
 
     print(f"Área: {area}")
     print(f"Encontrados: {len(found)}")

@@ -70,6 +70,15 @@ def canonicalize_area(area: str | None) -> str:
         "quimica": "quimica",
         "fis": "fisica",
         "fisica": "fisica",
+        "ling": "linguagens",
+        "linguagem": "linguagens",
+        "linguagens": "linguagens",
+        "hist": "historia",
+        "historia": "historia",
+        "filo": "filosofia",
+        "filosofia": "filosofia",
+        "socio": "sociologia",
+        "sociologia": "sociologia",
     }
     if not slug or slug == "geral":
         return "biologia"
@@ -129,30 +138,49 @@ def default_section_banners_for_area(area: str) -> dict[str, str]:
     area_slug = canonicalize_area(area)
     base = f"areas/{area_slug}/secoes"
     jpg_base = f"{base}/JPG"
+    basicos_areas = {"historia", "filosofia", "sociologia"}
 
     # Algumas áreas organizam seções em subpasta JPG.
     project_jpg_dir = runtime_dir() / "Assets" / "areas" / area_slug / "secoes" / "JPG"
     user_jpg_dir = assets_dir() / "areas" / area_slug / "secoes" / "JPG"
-    if project_jpg_dir.exists() or user_jpg_dir.exists():
+    if area_slug not in {"linguagens", *basicos_areas} and (project_jpg_dir.exists() or user_jpg_dir.exists()):
         base = jpg_base
+
+    first_section_asset = "exercicios_basicos" if area_slug in basicos_areas else "exercicios_sala"
     banners = {
-        "EXERCÍCIOS DE SALA": f"{base}/exercicios_sala.png",
-        "QUESTÕES DE SALA": f"{base}/exercicios_sala.png",
-        "QUESTÃO DE SALA": f"{base}/exercicios_sala.png",
+        "EXERCÍCIOS DE SALA": f"{base}/{first_section_asset}.png",
+        "QUESTÕES DE SALA": f"{base}/{first_section_asset}.png",
+        "QUESTÃO DE SALA": f"{base}/{first_section_asset}.png",
         "EXERCÍCIOS PROPOSTOS": f"{base}/exercicios_propostos.png",
         "QUESTÕES PROPOSTAS": f"{base}/exercicios_propostos.png",
         "QUESTÃO PROPOSTA": f"{base}/exercicios_propostos.png",
         "SEÇÃO ENEM": f"{base}/secao_enem.png",
         "QUESTÕES ENEM": f"{base}/secao_enem.png",
         "QUESTÃO ENEM": f"{base}/secao_enem.png",
-        "EXERCÍCIOS DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
-        "QUESTÕES DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
-        "QUESTÃO DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
-        "EXERCÍCIOS REGIONAIS": f"{base}/exercicios_regionais.png",
-        "QUESTÕES REGIONAIS": f"{base}/exercicios_regionais.png",
-        "QUESTÃO REGIONAL": f"{base}/exercicios_regionais.png",
-        "EXERCÍCIO REGIONAL": f"{base}/exercicios_regionais.png",
     }
+
+    if area_slug in basicos_areas:
+        banners.update(
+            {
+                "EXERCÍCIOS BÁSICOS": f"{base}/exercicios_basicos.png",
+                "EXERCÍCIO BÁSICO": f"{base}/exercicios_basicos.png",
+                "QUESTÕES BÁSICAS": f"{base}/exercicios_basicos.png",
+                "QUESTÃO BÁSICA": f"{base}/exercicios_basicos.png",
+            }
+        )
+
+    if area_slug not in {"linguagens", *basicos_areas}:
+        banners.update(
+            {
+                "EXERCÍCIOS DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
+                "QUESTÕES DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
+                "QUESTÃO DE APROFUNDAMENTO": f"{base}/exercicios_aprofundamento.png",
+                "EXERCÍCIOS REGIONAIS": f"{base}/exercicios_regionais.png",
+                "QUESTÕES REGIONAIS": f"{base}/exercicios_regionais.png",
+                "QUESTÃO REGIONAL": f"{base}/exercicios_regionais.png",
+                "EXERCÍCIO REGIONAL": f"{base}/exercicios_regionais.png",
+            }
+        )
 
     # Em matemática, usar explicitamente a arte customizada de sala.
     if area_slug == "matematica":
@@ -161,8 +189,8 @@ def default_section_banners_for_area(area: str) -> dict[str, str]:
         banners["QUESTÕES DE SALA"] = sala_custom
         banners["QUESTÃO DE SALA"] = sala_custom
 
-    # Em matemática, essa seção não é usada no material atual.
-    if area_slug != "matematica":
+    # Em matemática e linguagens, essa seção não é usada no material atual.
+    if area_slug not in {"matematica", "linguagens", *basicos_areas}:
         banners.update(
             {
                 "EXERCÍCIO DISSERTATIVO": f"{base}/exercicios_dissertativos.png",
@@ -177,15 +205,40 @@ def paths_with_image_extension_fallback(p: Path) -> list[Path]:
     # Prioridade: PNG primeiro para preservar cor/transparência de assets finais.
     preferred_exts = [".png", ".jpg", ".jpeg"]
     image_exts = {".jpg", ".jpeg", ".png"}
+    stem_aliases = [p.with_suffix("")]
+
+    stem_name = stem_aliases[0].name
+    if "_" in stem_name:
+        stem_aliases.append(stem_aliases[0].with_name(stem_name.replace("_", " ")))
+    if " " in stem_name:
+        stem_aliases.append(stem_aliases[0].with_name(stem_name.replace(" ", "_")))
+    if stem_name == "exercicios_sala":
+        stem_aliases.append(stem_aliases[0].with_name("exercicios_de_sala"))
+    if stem_name == "media":
+        stem_aliases.append(stem_aliases[0].with_name("medio"))
+
+    unique_stems: list[Path] = []
+    seen_stems: set[Path] = set()
+    for stem in stem_aliases:
+        if stem in seen_stems:
+            continue
+        seen_stems.add(stem)
+        unique_stems.append(stem)
+    stem_aliases = unique_stems
 
     if p.suffix.lower() in image_exts:
-        stem = p.with_suffix("")
-        return [stem.with_suffix(ext) for ext in preferred_exts]
+        candidates: list[Path] = []
+        for stem in stem_aliases:
+            candidates.extend(stem.with_suffix(ext) for ext in preferred_exts)
+        return candidates
 
     if p.suffix:
         return [p]
 
-    return [p.with_suffix(ext) for ext in preferred_exts]
+    candidates: list[Path] = []
+    for stem in stem_aliases:
+        candidates.extend(stem.with_suffix(ext) for ext in preferred_exts)
+    return candidates
 
 
 def convert_image_for_docx(img_path: Path) -> Path:
@@ -280,17 +333,23 @@ def resolve_path(p: str | Path) -> Path:
     assets = assets_dir()
     base = runtime_dir()
     project_assets = base / "Assets"
+    allow_basename_fallback = len(p.parts) <= 1
     candidates = [
         (assets / p),
-        (assets / p.name),
         (base / p),
         (base / "Assets" / p),
-        (base / "Assets" / p.name),
         (base / "assets" / p),
-        (base / "assets" / p.name),
         (project_assets / p),
-        (project_assets / p.name),
     ]
+    if allow_basename_fallback:
+        candidates.extend(
+            [
+                (assets / p.name),
+                (base / "Assets" / p.name),
+                (base / "assets" / p.name),
+                (project_assets / p.name),
+            ]
+        )
     expanded: list[Path] = []
     for cand in candidates:
         expanded.extend(paths_with_image_extension_fallback(cand))

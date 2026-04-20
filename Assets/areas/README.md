@@ -41,6 +41,24 @@ Assets/
         exercicios_aprofundamento.png|jpg|jpeg
         exercicios_regionais.png|jpg|jpeg
         exercicios_dissertativos.png|jpg|jpeg
+    linguagens/
+      capsulas/
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
+      secoes/
+        exercicios_sala.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
+    historia|filosofia|sociologia/
+      capsulas/
+        facil.png|jpg|jpeg
+        media.png|jpg|jpeg
+        dificil.png|jpg|jpeg
+      secoes/
+        exercicios_basicos.png|jpg|jpeg
+        exercicios_propostos.png|jpg|jpeg
+        secao_enem.png|jpg|jpeg
 ```
 
 ## Como o script resolve
@@ -60,5 +78,7 @@ Assets/
 
 - Pasta da área: minúscula e sem acentos (ex.: `linguagens`, `matematica`)
 - Arquivos das cápsulas: sempre `facil`, `media`, `dificil` (`.png`, `.jpg` ou `.jpeg`)
-- Arquivos de seção: `exercicios_sala`, `exercicios_propostos`, `secao_enem`, `exercicios_aprofundamento`, `exercicios_regionais`, `exercicios_dissertativos` (`.png`, `.jpg` ou `.jpeg`)
+- Arquivos de seção: normalmente `exercicios_sala`, `exercicios_propostos`, `secao_enem`, `exercicios_aprofundamento`, `exercicios_regionais`, `exercicios_dissertativos` (`.png`, `.jpg` ou `.jpeg`)
+- Em `linguagens`, use apenas `exercicios_sala`, `exercicios_propostos` e `secao_enem`
+- Em `historia`, `filosofia` e `sociologia`, use apenas `exercicios_basicos`, `exercicios_propostos` e `secao_enem`
 - Equivalência de título (especial): `Questão Regional`, `Questões Regionais` e `Exercício Regional` são tratados como `Exercícios Regionais`.

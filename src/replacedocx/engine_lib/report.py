@@ -13,24 +13,34 @@ INLINE_QUESTION_DIFFICULTY_RE = re.compile(
     r"\(?\s*(?P<level_b>FACIL|MEDIA|MEDIO|MEDIAS|DIFICIL)\s*\)?\s*(?P<num_b>\d+)\s*[\.\)\-:]?)"
 )
 ANSWER_KEY_LINE_RE = re.compile(
-    r"^\s*(?:QUESTAO\s*)?(?P<num>\d{1,3})\s*[:\)\.\-]?\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?\s*$"
+    r"^\s*(?:(?:RESPOSTA(?:\s+DA)?\s+)?QUESTAO\s*)?(?P<num>\d{1,3})\s*[:\)\.\-]?\s*"
+    r"(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?\s*$"
 )
 ANSWER_KEY_MULTI_PAIR_RE = re.compile(
-    r"(?:QUESTAO\s*)?(?P<num>\d{1,3})\s*[:\)\.\-]\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?"
+    r"(?:(?:RESPOSTA(?:\s+DA)?\s+)?QUESTAO\s*)?(?P<num>\d{1,3})\s*[:\)\.\-]\s*"
+    r"(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?"
     r"(?=\s*(?:$|[;,\|]|(?:\d{1,3}\s*[:\)\.\-])))"
 )
 ANSWER_KEY_INLINE_ALT_RE = re.compile(
     r"^\s*(?:GABARITO|RESPOSTA(?:\s+CORRETA)?)\s*[:\-]?\s*(?:ALTERNATIVA\s*)?(?:\[|\()?\s*(?P<alt>[A-E])\s*(?:\]|\))?\s*$"
 )
 ANSWER_KEY_SINGLE_PAIR_LOOSE_RE = re.compile(
-    r"^\s*(?:QUESTAO\s*|Q\s*)?[\(\[]?\s*\d{1,3}\s*[\)\]]?\s*(?:º|°|ª)?\s*"
+    r"^\s*(?:(?:RESPOSTA(?:\s+DA)?\s+)?QUESTAO\s*|QUESTAO\s*|Q\s*)?[\(\[]?\s*\d{1,3}\s*[\)\]]?\s*(?:º|°|ª)?\s*"
     r"(?:[:=\.\)\(\-–—/])?\s*(?:ALTERNATIVA\s*)?[\(\[]?\s*[A-E]\s*[\)\]]?\s*$"
 )
 ANSWER_KEY_PAIR_TOKEN_LOOSE_RE = re.compile(
-    r"(?:QUESTAO\s*|Q\s*)?[\(\[]?\s*(?P<num>\d{1,3})\s*[\)\]]?\s*(?:º|°|ª)?\s*"
+    r"(?:(?:RESPOSTA(?:\s+DA)?\s+)?QUESTAO\s*|QUESTAO\s*|Q\s*)?[\(\[]?\s*(?P<num>\d{1,3})\s*[\)\]]?\s*(?:º|°|ª)?\s*"
     r"(?:[:=\.\)\(\-–—/])?\s*(?:ALTERNATIVA\s*)?[\(\[]?\s*(?P<alt>[A-E])\b\s*[\)\]]?"
 )
 QUESTION_LABEL_NUMBER_RE = re.compile(r"(\d+)\s*$")
+QUESTION_START_RE = re.compile(
+    r"^\s*"
+    r"(?:(?:QUESTAO|QUESTOES|Q|ITEM)\s*)?"
+    r"[\(\[]?\s*(?P<num>\d{1,3})\s*[\)\]]?"
+    r"(?:\s*(?:º|°|ª))?"
+    r"(?:\s*[\.\)\-:])?"
+    r"(?=\s|$)"
+)
 
 
 def section_aliases_for_report() -> dict[str, list[str]]:
@@ -40,6 +50,10 @@ def section_aliases_for_report() -> dict[str, list[str]]:
             "EXERCÍCIO DE SALA",
             "QUESTÕES DE SALA",
             "QUESTÃO DE SALA",
+            "EXERCÍCIOS BÁSICOS",
+            "EXERCÍCIO BÁSICO",
+            "QUESTÕES BÁSICAS",
+            "QUESTÃO BÁSICA",
         ],
         "EXERCÍCIOS PROPOSTOS": [
             "EXERCÍCIOS PROPOSTOS",
@@ -48,7 +62,7 @@ def section_aliases_for_report() -> dict[str, list[str]]:
             "QUESTÃO PROPOSTA",
             "PROPOSTOS",
         ],
-        "SEÇÃO ENEM": ["SEÇÃO ENEM", "QUESTÕES ENEM", "QUESTÃO ENEM", "ENEM"],
+        "SEÇÃO ENEM": ["SEÇÃO ENEM", "QUESTÕES ENEM", "QUESTÃO ENEM", "NO ENEM É ASSIM"],
         "EXERCÍCIOS DE APROFUNDAMENTO": [
             "EXERCÍCIOS DE APROFUNDAMENTO",
             "EXERCÍCIO DE APROFUNDAMENTO",
@@ -83,6 +97,8 @@ def match_section_for_report(norm_txt: str) -> str | None:
             if norm_txt.startswith(norm_alias + " -"):
                 return canonical
             if norm_alias in norm_txt and len(norm_txt) <= len(norm_alias) + 20:
+                if re.match(r"^\d+\s*[\.\)\-:]", norm_txt):
+                    continue
                 return canonical
     return None
 
@@ -136,7 +152,19 @@ def difficulty_label(diff_key: str) -> str:
         return "Média"
     if diff_key == "dificil":
         return "Difícil"
+    if diff_key == "neutro":
+        return "Neutro"
     return diff_key
+
+
+def extract_question_number(text: str) -> str | None:
+    norm_txt = normalize_text_key(text)
+    if is_standalone_answer_key_line(norm_txt):
+        return None
+    match = QUESTION_START_RE.match(norm_txt)
+    if not match:
+        return None
+    return str(int(match.group("num")))
 
 
 def _is_answer_key_header(norm_txt: str) -> bool:
@@ -325,6 +353,36 @@ def _extract_answer_keys_by_section(doc: Document) -> dict[str, dict[str, str]]:
 
     _ = found_pairs_in_tail
 
+    # Estratégia 4: bloco por seção com linhas puras de gabarito
+    # (ex.: "Exercicios Basicos" seguido de "1 - E", "2 - B"...),
+    # mesmo sem header "Gabarito" e mesmo fora do trecho final.
+    target_section = None
+    collected_in_block = 0
+    for p in paragraphs:
+        txt = (p.text or "").strip()
+        if not txt:
+            continue
+
+        norm_txt = normalize_text_key(txt)
+        section = _match_section_in_answer_key_context(norm_txt)
+        if section:
+            target_section = section
+            collected_in_block = 0
+            continue
+
+        if not target_section:
+            continue
+
+        if is_standalone_answer_key_line(norm_txt):
+            for num, alt in extract_answer_pairs(norm_txt):
+                answers.setdefault(target_section, {})[num] = alt
+            collected_in_block += 1
+            continue
+
+        if collected_in_block:
+            target_section = None
+            collected_in_block = 0
+
     return answers
 
 
@@ -335,12 +393,55 @@ def _question_number_from_label(label: str, fallback_idx: int) -> str:
     return str(int(match.group(1)))
 
 
+def _sorted_answer_items(answer_map: dict[str, str]) -> list[tuple[str, str]]:
+    return sorted(answer_map.items(), key=lambda item: int(item[0]))
+
+
+def _build_section_from_answers(section_name: str, answer_map: dict[str, str]) -> dict:
+    return {
+        "secao": section_name,
+        "questoes": [
+            {
+                "questao": f"Questão {num}",
+                "dificuldade": "neutro",
+                "gabarito": alt,
+            }
+            for num, alt in _sorted_answer_items(answer_map)
+        ],
+    }
+
+
+def _merge_sections_by_name(sections: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    by_name: dict[str, dict] = {}
+    seen_numbers_by_section: dict[str, set[str]] = {}
+
+    for item in sections:
+        section_name = item["secao"]
+        target = by_name.get(section_name)
+        if target is None:
+            target = {"secao": section_name, "questoes": []}
+            by_name[section_name] = target
+            seen_numbers_by_section[section_name] = set()
+            merged.append(target)
+
+        seen_numbers = seen_numbers_by_section[section_name]
+        for idx, question in enumerate(item.get("questoes", []), start=1):
+            qnum = _question_number_from_label(question.get("questao", ""), idx)
+            if qnum in seen_numbers:
+                continue
+            target["questoes"].append(dict(question))
+            seen_numbers.add(qnum)
+
+    return merged
+
+
 def collect_questions_by_section(doc: Document, include_answer_key: bool = False) -> list[dict]:
     sections: list[dict] = []
     current: dict | None = None
     seq = 0
 
-    for p in list(doc.paragraphs):
+    for p in list(iter_paragraphs(doc)):
         txt = (p.text or "").strip()
         if not txt:
             continue
@@ -360,24 +461,68 @@ def collect_questions_by_section(doc: Document, include_answer_key: bool = False
             continue
 
         info = extract_question_info(txt)
-        if not info:
-            continue
-
-        num, diff = info
+        if info:
+            num, diff = info
+        else:
+            num = extract_question_number(txt)
+            if not num:
+                continue
+            diff = "neutro"
         seq += 1
         q_label = f"Questão {num}" if num else f"Questão {seq}"
         current["questoes"].append({"questao": q_label, "dificuldade": diff})
 
-    if include_answer_key and sections:
+    sections = _merge_sections_by_name(sections)
+
+    for section_item in sections:
+        section_item["questoes"].sort(
+            key=lambda q: int(_question_number_from_label(q.get("questao", ""), 10**6))
+        )
+
+    if include_answer_key:
         answers_by_section = _extract_answer_keys_by_section(doc)
         fallback_answers = answers_by_section.get("SEM SEÇÃO", {})
         for section_item in sections:
             section_answers = answers_by_section.get(section_item["secao"], {})
+            existing_nums: set[str] = set()
             for idx, question in enumerate(section_item.get("questoes", []), start=1):
                 qnum = _question_number_from_label(question.get("questao", ""), idx)
+                existing_nums.add(qnum)
                 answer = section_answers.get(qnum) or fallback_answers.get(qnum)
                 if answer:
                     question["gabarito"] = answer
+            for qnum, answer in _sorted_answer_items(section_answers):
+                if qnum in existing_nums:
+                    continue
+                section_item.setdefault("questoes", []).append(
+                    {
+                        "questao": f"Questão {qnum}",
+                        "dificuldade": "neutro",
+                        "gabarito": answer,
+                    }
+                )
+                existing_nums.add(qnum)
+            section_item["questoes"].sort(
+                key=lambda q: int(_question_number_from_label(q.get("questao", ""), 10**6))
+            )
+
+        existing_sections = {item["secao"] for item in sections}
+        for section_name, answer_map in answers_by_section.items():
+            if section_name == "SEM SEÇÃO" or section_name in existing_sections or not answer_map:
+                continue
+            sections.append(_build_section_from_answers(section_name, answer_map))
+            existing_sections.add(section_name)
+
+        if not any(item.get("questoes") for item in sections):
+            generated_sections: list[dict] = []
+            for section_name in section_aliases_for_report().keys():
+                answer_map = answers_by_section.get(section_name, {})
+                if answer_map:
+                    generated_sections.append(_build_section_from_answers(section_name, answer_map))
+            if not generated_sections and fallback_answers:
+                generated_sections.append(_build_section_from_answers("SEM SEÇÃO", fallback_answers))
+            if generated_sections:
+                sections = generated_sections
 
     return sections
 

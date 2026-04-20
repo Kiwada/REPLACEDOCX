@@ -4,10 +4,15 @@ import re
 import unicodedata
 
 from docx import Document
+from docx.document import Document as _Document
+from docx.oxml.table import CT_Tbl
+from docx.oxml.text.paragraph import CT_P
 from docx.enum.text import WD_LINE_SPACING, WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.table import Table, _Cell
 from docx.shared import Cm, Pt, RGBColor
+from docx.text.paragraph import Paragraph
 
 from .common import BADGE_TAG, add_picture_resilient, resolve_path
 
@@ -113,15 +118,30 @@ def style_cell_text(
             run.font.color.rgb = RGBColor.from_string(color_hex)
 
 
-def iter_paragraphs(doc: Document):
-    for p in doc.paragraphs:
-        yield p
+def _iter_block_items(parent):
+    if isinstance(parent, _Document):
+        parent_elm = parent.element.body
+    elif isinstance(parent, _Cell):
+        parent_elm = parent._tc
+    else:
+        raise TypeError(f"Parent type not supported: {type(parent)!r}")
 
-    for t in doc.tables:
-        for row in t.rows:
+    for child in parent_elm.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
+def iter_paragraphs(doc: Document | _Cell):
+    for item in _iter_block_items(doc):
+        if isinstance(item, Paragraph):
+            yield item
+            continue
+
+        for row in item.rows:
             for cell in row.cells:
-                for p in cell.paragraphs:
-                    yield p
+                yield from iter_paragraphs(cell)
 
 
 def remove_paragraph(p) -> None:
@@ -267,6 +287,63 @@ def _element_visible_text(element) -> str:
         elif node.tag in {qn("w:br"), qn("w:cr")}:
             chunks.append("\n")
     return "".join(chunks)
+
+
+def _trim_element_leading_text(element, char_count: int) -> int:
+    remaining = max(0, int(char_count))
+    if remaining <= 0:
+        return 0
+
+    for node in list(element.iter()):
+        if remaining <= 0:
+            break
+
+        if node.tag == qn("w:t"):
+            text = node.text or ""
+            if not text:
+                continue
+            if remaining >= len(text):
+                remaining -= len(text)
+                parent = node.getparent()
+                if parent is not None:
+                    parent.remove(node)
+                continue
+            node.text = text[remaining:]
+            remaining = 0
+            break
+
+        if node.tag in {qn("w:tab"), qn("w:br"), qn("w:cr")}:
+            remaining -= 1
+            parent = node.getparent()
+            if parent is not None:
+                parent.remove(node)
+
+    return max(0, remaining)
+
+
+def trim_paragraph_leading_text(p, char_count: int) -> None:
+    remaining = max(0, int(char_count))
+    if remaining <= 0:
+        return
+
+    paragraph_el = p._element
+    for child in [child for child in list(paragraph_el) if child.tag != qn("w:pPr")]:
+        if remaining <= 0:
+            break
+
+        child_text = _element_visible_text(child)
+        child_len = len(child_text)
+        if child_len <= 0:
+            paragraph_el.remove(child)
+            continue
+
+        if remaining >= child_len:
+            remaining -= child_len
+            paragraph_el.remove(child)
+            continue
+
+        _trim_element_leading_text(child, remaining)
+        break
 
 
 def _detach_new_run_element(run):
